@@ -1,0 +1,71 @@
+{
+  "strategies": {
+    "pcatr_290425_rose_15m_2": {
+      "last_notified_ts": "2025-08-06T07:00:00+00:00"
+    },
+    "pcatr_290425_mkr_60m_2": {
+      "last_notified_ts": "2025-07-17T17:00:00+00:00"
+    },
+    "pcatr_sol_15m_2": {
+      "last_notified_ts": "2025-08-10T10:00:00+00:00"
+    },
+    "pcatr_290425_sol_60m_2": {
+      "last_notified_ts": "2025-07-22T18:00:00+00:00"
+    },
+    "bbtrend_hbar_05m_1": {
+      "last_notified_ts": "2025-08-09T22:00:00+00:00"
+    },
+    "pcatr_sol_30m_1": {
+      "last_notified_ts": "2025-07-22T18:00:00+00:00"
+    },
+    "pcatr_sol_05m_1": {
+      "last_notified_ts": "2025-08-09T23:00:00+00:00"
+    },
+    "fluger_short_bch_30m_1": {
+      "last_notified_ts": "2025-07-15T18:00:00+00:00"
+    },
+    "pcatr_eth_60m_1": {
+      "last_notified_ts": "2025-07-25T06:00:00+00:00"
+    },
+    "fluger_tao_60m_1": {
+      "last_notified_ts": "2025-08-10T11:00:00+00:00"
+    },
+    "fluger_short_ada_30m_1": {
+      "last_notified_ts": "2025-07-30T21:00:00+00:00"
+    },
+    "pcatr_eth_30m_1": {
+      "last_notified_ts": "2025-07-25T06:00:00+00:00"
+    },
+    "bbtrend_short_atom_05m_1": {
+      "last_notified_ts": "2025-08-06T07:00:00+00:00"
+    },
+    "fluger_sol_30m_1": {
+      "last_notified_ts": "2025-08-10T11:00:00+00:00"
+    },
+    "pcatr_290425_sol_15m_2": {
+      "last_notified_ts": "2025-07-28T06:00:00+00:00"
+    },
+    "pcatr_290425_near_60m_2": {
+      "last_notified_ts": "2025-07-14T17:00:00+00:00"
+    },
+    "fluger_avax_30m_1": {
+      "last_notified_ts": "2025-08-09T21:00:00+00:00"
+    },
+    "bbtrend_imx_05m_1": {
+      "last_notified_ts": "2025-08-10T11:00:00+00:00"
+    },
+    "fluger_atom_30m_1": {
+      "last_notified_ts": "2025-08-09T22:00:00+00:00"
+    },
+    "fluger_short_fil_30m_1": {
+      "last_notified_ts": "2025-08-02T22:00:00+00:00"
+    },
+    "pcatr_290425_btc_60m_2": {
+      "last_notified_ts": "2025-07-24T15:00:00+00:00"
+    },
+    "pcatr_290425_near_15m_2": {
+      "last_notified_ts": "2025-08-09T22:00:00+00:00"
+    }
+  },
+  "simulation_now": "2025-08-10T22:43:12.163922+00:00"
+}
