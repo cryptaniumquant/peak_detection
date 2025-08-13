@@ -39,4 +39,4 @@ def load_settings():
 
 def load_strategy_thresholds(path=None):
     """Load strategy thresholds using the unified config system"""
-    return _parent_config.load_strategy_thresholds(path)
+    return _parent_config.load_strategy_thresholds()

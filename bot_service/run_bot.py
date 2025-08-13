@@ -10,6 +10,7 @@ from services.notifier import Notifier
 from services.state_store import StateStore
 from services.data_pipeline import (
     list_strategies,
+    run_realtime_cycle,
     run_realtime_cycle_async,
     run_simulation_cycle_async,
     build_notification_payload,

@@ -15,7 +15,7 @@ from bot_service.services.state_store import StateStore  # noqa: E402
 from bot_service.services.visualization_service import visualize_last_7_days, visualize_last_7_days_df  # noqa: E402
 
 # Import existing processors (in-memory versions)
-from strategy_data_processor import process_strategy_df_hours_async, process_strategy_df_async, process_strategy_df, process_strategy_df_hours  # noqa: E402
+from strategy_data_processor import process_strategy_df_hours_async, process_strategy_df_async, process_strategy_df, process_strategy_df_hours, get_csv_strategies  # noqa: E402
 from calculate_peak import process_file as calc_process_file, process_df as calc_process_df  # noqa: E402
 
 
