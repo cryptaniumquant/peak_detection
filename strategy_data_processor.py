@@ -22,7 +22,6 @@ spec = importlib.util.spec_from_file_location("main_config", config_path)
 main_config = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(main_config)
 
-get_db_connection_params = main_config.get_db_connection_params
 get_async_database_uri = main_config.get_async_database_uri
 
 # Global async engine and session maker
@@ -37,19 +36,6 @@ def get_async_engine():
         _async_engine = create_async_engine(database_uri, echo=False)
         _async_session_maker = async_sessionmaker(_async_engine, expire_on_commit=False, autoflush=False)
     return _async_engine, _async_session_maker
-
-def connect_to_mysql():
-    """Establish connection to the MySQL database (legacy sync version)"""
-    try:
-        db_params = get_db_connection_params()
-        connection_string = f"mysql+pymysql://{db_params['user']}:{db_params['password']}@{db_params['host']}:{db_params['port']}/{db_params['database']}"
-        engine = create_engine(connection_string)
-        conn = engine.connect()
-        print("Connected to MySQL database successfully!")
-        return conn, engine
-    except Exception as e:
-        print(f"Error connecting to MySQL: {e}")
-        return None, None
 
 def get_csv_strategies(csv_path):
     """Get strategy names from CSV file"""

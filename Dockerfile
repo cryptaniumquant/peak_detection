@@ -16,19 +16,12 @@ COPY bot_service/requirements.txt /root/
 RUN python -m pip install --upgrade pip \
     && pip install -r /root/requirements.txt
 
-# Create volumes for SSH keys and keyring (if needed for future extensions)
-VOLUME /root/.ssh /root/.local/share/python_keyring
-
 # Set working directory
 WORKDIR /root/app
 
+# Set entrypoint and default command
+ENTRYPOINT ["python"]
+CMD ["-m", "bot_service.run_bot"]
+
 # Copy the entire project
 COPY . ./
-
-# Create entrypoint script
-COPY entrypoint.sh /root/app/entrypoint.sh
-RUN chmod +x /root/app/entrypoint.sh
-
-# Set entrypoint and default command
-ENTRYPOINT ["/root/app/entrypoint.sh"]
-CMD ["python", "run_bot.py"]

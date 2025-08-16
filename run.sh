@@ -49,20 +49,16 @@ build_image() {
 # Function to run the container
 run_container() {
     echo -e "${BLUE}🚀 Starting container...${NC}"
-    
-    # Create volumes if they don't exist
-    docker volume create ssh 2>/dev/null || true
-    docker volume create keyring 2>/dev/null || true
-    
+
     # Run the container
     docker run -dit \
         --name ${CONTAINER_NAME} \
         --restart unless-stopped \
         --log-opt max-size=100m \
         --log-opt max-file=3 \
-        -v $(pwd)/local_settings.py:/root/app/local_settings.py:ro \
-        --mount source=ssh,destination=/root/.ssh \
-        --mount source=keyring,destination=/root/.local/share/python_keyring \
+        -v $(pwd)/state:/root/app/state \
+        -v $(pwd)/visualizations:/root/app/visualizations \
+        -v $(pwd)/local_settings.py:/root/app/local_settings.py \
         ${IMAGE_NAME}
     
     echo -e "${GREEN}✅ Container started successfully${NC}"

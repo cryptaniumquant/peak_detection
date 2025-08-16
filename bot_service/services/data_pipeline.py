@@ -10,9 +10,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from bot_service.config import PROCESSED_DIR, load_strategy_thresholds  # noqa: E402  # left for compatibility, not used for I/O now
-from bot_service.services.state_store import StateStore  # noqa: E402
-from bot_service.services.visualization_service import visualize_last_7_days, visualize_last_7_days_df  # noqa: E402
+from config import PROCESSED_DIR, load_strategy_thresholds  # noqa: E402  # left for compatibility, not used for I/O now
+from .state_store import StateStore  # noqa: E402
+from .visualization_service import visualize_last_7_days, visualize_last_7_days_df  # noqa: E402
 
 # Import existing processors (in-memory versions)
 from strategy_data_processor import process_strategy_df_hours_async, process_strategy_df_async, process_strategy_df, process_strategy_df_hours, get_csv_strategies  # noqa: E402

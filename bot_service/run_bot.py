@@ -6,9 +6,9 @@ from zoneinfo import ZoneInfo
 import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import load_settings
-from services.notifier import Notifier
-from services.state_store import StateStore
-from services.data_pipeline import (
+from .services.notifier import Notifier
+from .services.state_store import StateStore
+from .services.data_pipeline import (
     list_strategies,
     run_realtime_cycle,
     run_realtime_cycle_async,
@@ -256,12 +256,11 @@ def main():
         coalesce=True,    # If multiple runs are queued, run only the latest
         timezone=settings.timezone
     )
-    
-    scheduler.start()
-    print(f"Scheduler started - will run at the beginning of each hour ({settings.timezone})")
 
     # Notify start and run polling
     async def on_startup(app_inner: Application):
+        scheduler.start()
+        print(f"Scheduler started - will run at the beginning of each hour ({settings.timezone})")
         await notifier.send_text("Bot started. Commands: /run_now, /simulate_at, /all_viz\nScheduled to run at the beginning of each hour.")
 
     app.post_init = on_startup

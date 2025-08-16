@@ -9,16 +9,6 @@ import csv
 from dataclasses import dataclass
 from typing import Optional, List, Dict
 
-# =============================================================================
-# DATABASE CONFIGURATION
-# =============================================================================
-# Database connection parameters - override in local_settings.py
-DB_HOST = None
-DB_PORT = None
-DB_DATABASE = None
-DB_USER = None
-DB_PASSWORD = None
-
 # SQLAlchemy async database URI - constructed from individual params or override in local_settings.py
 SQLALCHEMY_DATABASE_URI = None
 
@@ -148,30 +138,12 @@ def load_settings() -> Settings:
     
     return settings
 
-def get_db_connection_params():
-    """Get database connection parameters"""
-    if not all([DB_HOST, DB_PORT, DB_DATABASE, DB_USER, DB_PASSWORD]):
-        raise ValueError("Database connection parameters are required in local_settings.py")
-    
-    return {
-        'host': DB_HOST,
-        'port': DB_PORT,
-        'database': DB_DATABASE,
-        'user': DB_USER,
-        'password': DB_PASSWORD
-    }
-
 def get_async_database_uri():
     """Get async database URI for SQLAlchemy"""
-    if SQLALCHEMY_DATABASE_URI:
-        # Use provided URI, replace pymysql with asyncmy for async support
-        return SQLALCHEMY_DATABASE_URI.replace('+pymysql', '+asyncmy')
-    
-    # Construct from individual parameters
-    if not all([DB_HOST, DB_PORT, DB_DATABASE, DB_USER, DB_PASSWORD]):
-        raise ValueError("Database connection parameters are required in local_settings.py")
-    
-    return f"mysql+asyncmy://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_DATABASE}"
+    assert SQLALCHEMY_DATABASE_URI
+
+    # Use provided URI, replace pymysql with asyncmy for async support
+    return SQLALCHEMY_DATABASE_URI.replace('+pymysql', '+asyncmy')
 
 # =============================================================================
 # IMPORT LOCAL SETTINGS (MUST BE AT THE END)
