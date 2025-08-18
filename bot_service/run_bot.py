@@ -18,9 +18,9 @@ from .services.data_pipeline import (
     run_realtime_cycle_async,
     run_simulation_cycle_async,
     build_notification_payload,
-    get_strategy_data_async,
     build_viz_df_for_strategy_async,
 )
+from strategy_data_processor import get_strategy_data_async
 
 logger = logging.getLogger(__name__)
 
