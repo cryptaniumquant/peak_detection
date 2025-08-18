@@ -50,17 +50,23 @@ build_image() {
 run_container() {
     echo -e "${BLUE}🚀 Starting container...${NC}"
     
+    # Create host directories for persistent data
+    mkdir -p $(pwd)/visualizations
+    mkdir -p $(pwd)/bot_service/state
+    
     # Create volumes if they don't exist
     docker volume create ssh 2>/dev/null || true
     docker volume create keyring 2>/dev/null || true
     
-    # Run the container
+    # Run the container with host-mounted directories
     docker run -dit \
         --name ${CONTAINER_NAME} \
         --restart unless-stopped \
         --log-opt max-size=100m \
         --log-opt max-file=3 \
         -v $(pwd)/local_settings.py:/root/app/local_settings.py:ro \
+        -v $(pwd)/visualizations:/root/app/visualizations \
+        -v $(pwd)/bot_service/state:/root/app/bot_service/state \
         --mount source=ssh,destination=/root/.ssh \
         --mount source=keyring,destination=/root/.local/share/python_keyring \
         ${IMAGE_NAME}

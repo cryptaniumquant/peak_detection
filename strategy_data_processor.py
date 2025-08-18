@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
-from sqlalchemy import create_engine, text
+import logging
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 import csv
 from datetime import datetime, timedelta
@@ -22,8 +23,9 @@ spec = importlib.util.spec_from_file_location("main_config", config_path)
 main_config = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(main_config)
 
-get_db_connection_params = main_config.get_db_connection_params
 get_async_database_uri = main_config.get_async_database_uri
+
+logger = logging.getLogger(__name__)
 
 # Global async engine and session maker
 _async_engine = None
@@ -38,18 +40,6 @@ def get_async_engine():
         _async_session_maker = async_sessionmaker(_async_engine, expire_on_commit=False, autoflush=False)
     return _async_engine, _async_session_maker
 
-def connect_to_mysql():
-    """Establish connection to the MySQL database (legacy sync version)"""
-    try:
-        db_params = get_db_connection_params()
-        connection_string = f"mysql+pymysql://{db_params['user']}:{db_params['password']}@{db_params['host']}:{db_params['port']}/{db_params['database']}"
-        engine = create_engine(connection_string)
-        conn = engine.connect()
-        print("Connected to MySQL database successfully!")
-        return conn, engine
-    except Exception as e:
-        print(f"Error connecting to MySQL: {e}")
-        return None, None
 
 def get_csv_strategies(csv_path):
     """Get strategy names from CSV file"""
@@ -59,10 +49,10 @@ def get_csv_strategies(csv_path):
             csv_reader = csv.DictReader(f)
             for row in csv_reader:
                 strategies.append(row['strategy'])
-        print(f"Found {len(strategies)} strategies in CSV file")
+        logger.info(f"Found {len(strategies)} strategies in CSV file")
         return strategies
     except Exception as e:
-        print(f"Error reading CSV file: {e}")
+        logger.error(f"Error reading CSV file: {e}")
         return None
 
 async def get_strategy_data_async(strategy_name, days=30):
@@ -113,7 +103,7 @@ async def get_strategy_data_async(strategy_name, days=30):
             rows = list(result.mappings().all())
             
         if not rows:
-            print(f"No non-zero data found for strategy {strategy_name}")
+            logger.warning(f"No non-zero data found for strategy {strategy_name}")
             return None
         
         # Convert to DataFrame
@@ -122,11 +112,11 @@ async def get_strategy_data_async(strategy_name, days=30):
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df.set_index('timestamp', inplace=True)
         
-        print(f"Retrieved {len(df)} non-zero records for strategy {strategy_name}")
+        logger.info(f"Retrieved {len(df)} non-zero records for strategy {strategy_name}")
         return df
     
     except Exception as e:
-        print(f"Error retrieving data for strategy {strategy_name}: {e}")
+        logger.error(f"Error retrieving data for strategy {strategy_name}: {e}")
         return None
 
 def get_strategy_data(strategy_name, days=30):
@@ -177,7 +167,7 @@ def aggregate_to_hourly(df):
     
     # Check if we have enough consecutive hours of data
     if len(hourly_df) < 25:  # Need at least 25 hours for the Savitzky-Golay filter
-        print(f"Not enough hourly data points after filtering: {len(hourly_df)}")
+        logger.warning(f"Not enough hourly data points after filtering: {len(hourly_df)}")
         return None
     
     # Find the longest continuous segment with at least 25 hours of data
@@ -200,12 +190,12 @@ def aggregate_to_hourly(df):
         continuous_segments.append(current_segment)
     
     if not continuous_segments:
-        print("No continuous segments with at least 25 hours of data found")
+        logger.warning("No continuous segments with at least 25 hours of data found")
         return None
     
     # Find the longest segment
     longest_segment = max(continuous_segments, key=len)
-    print(f"Found continuous segment with {len(longest_segment)} hours of data")
+    logger.info(f"Found continuous segment with {len(longest_segment)} hours of data")
     
     # Extract the longest segment
     segment_indices = [timestamps[i] for i in longest_segment]
@@ -238,7 +228,7 @@ def process_strategy(strategy_name, output_dir, days=30):
     
     # Save to CSV
     hourly_df.to_csv(output_file)
-    print(f"Saved data for strategy {strategy_name} to {output_file}")
+    logger.info(f"Saved data for strategy {strategy_name} to {output_file}")
     
     return output_file
 
@@ -296,7 +286,7 @@ async def get_strategy_data_hours_async(strategy_name: str, hours: int = 25):
             rows = list(result.mappings().all())
             
         if not rows:
-            print(f"No non-zero data found (last {hours}h) for strategy {strategy_name}")
+            logger.warning(f"No non-zero data found (last {hours}h) for strategy {strategy_name}")
             return None
             
         df_data = [{'strategy': row['analyst'], 'timestamp': row['res_time'], 'unrealized_pnl': row['virtual_unrealized_pnl']} for row in rows]
@@ -306,7 +296,7 @@ async def get_strategy_data_hours_async(strategy_name: str, hours: int = 25):
         return df
         
     except Exception as e:
-        print(f"Error retrieving last {hours}h for {strategy_name}: {e}")
+        logger.error(f"Error retrieving last {hours}h for {strategy_name}: {e}")
         return None
 
 def get_strategy_data_hours(strategy_name: str, hours: int = 25):
@@ -366,7 +356,7 @@ def process_all_strategies(csv_path, output_dir):
         if output_file:
             processed_files.append(output_file)
     
-    print(f"Processed {len(processed_files)} strategies")
+    logger.info(f"Processed {len(processed_files)} strategies")
     return processed_files
 
 def main():
@@ -381,7 +371,7 @@ def main():
     
     # Run peak detection on the processed files
     if processed_files:
-        print("\nRunning peak detection on processed files...")
+        logger.info("Running peak detection on processed files...")
         from calculate_peak import process_file
         
         for file_path in processed_files:

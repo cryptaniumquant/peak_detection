@@ -4,8 +4,20 @@ from telegram import Update, Bot
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import asyncio
+import logging
+from functools import wraps
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from config import load_settings
+
+# Import from parent directory
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+import config
+from logging_config import setup_logging
 from services.notifier import Notifier
 from services.state_store import StateStore
 from services.data_pipeline import (
@@ -17,6 +29,24 @@ from services.data_pipeline import (
     run_simulation_at_async,
     build_viz_df_for_strategy_async,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def authorized_chat_only(func):
+    """Decorator to check if command comes from authorized chat_id"""
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        settings = context.application.bot_data['settings']
+        authorized_chat_id = int(settings.telegram_chat_id)
+        
+        if update.effective_chat.id != authorized_chat_id:
+            # Silently ignore commands from unauthorized chats
+            logger.warning(f"Unauthorized command attempt from chat_id: {update.effective_chat.id}")
+            return
+        
+        return await func(update, context)
+    return wrapper
 
 
 async def run_cycle(context: ContextTypes.DEFAULT_TYPE, announce_no_signals: bool = False) -> int:
@@ -73,7 +103,7 @@ _app_data = None
 async def scheduled_run_cycle():
     """Scheduled function for APScheduler - runs at the beginning of each hour"""
     if _app_data is None:
-        print("ERROR: App data not initialized for scheduled run")
+        logger.error("App data not initialized for scheduled run")
         return
     
     try:
@@ -119,10 +149,10 @@ async def scheduled_run_cycle():
                     state.set_last_notified(ev['strategy'], ev['last_signal_ts'])
                     sent += 1
 
-        print(f"Scheduled cycle completed. Sent {sent} notifications.")
+        logger.info(f"Scheduled cycle completed. Sent {sent} notifications.")
         
     except Exception as e:
-        print(f"Error in scheduled run cycle: {e}")
+        logger.error(f"Error in scheduled run cycle: {e}")
         if _app_data and 'notifier' in _app_data:
             try:
                 await _app_data['notifier'].send_text(f"Error in scheduled cycle: {e}")
@@ -130,6 +160,7 @@ async def scheduled_run_cycle():
                 pass
 
 
+@authorized_chat_only
 async def cmd_run_now(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Running job now...")
     await run_cycle(context, announce_no_signals=True)
@@ -154,6 +185,7 @@ def _parse_datetime_in_tz(dt_str: str, tz_name: str) -> datetime | None:
         return None
 
 
+@authorized_chat_only
 async def cmd_simulate_at(update: Update, context: ContextTypes.DEFAULT_TYPE):
     settings = context.application.bot_data['settings']
     notifier: Notifier = context.application.bot_data['notifier']
@@ -189,6 +221,7 @@ async def cmd_simulate_at(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await notifier.send_text("No signal at the specified time.")
 
 
+@authorized_chat_only
 async def cmd_all_viz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     settings = context.application.bot_data['settings']
     notifier: Notifier = context.application.bot_data['notifier']
@@ -225,7 +258,17 @@ async def cmd_all_viz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     global _app_data
     
-    settings = load_settings()
+    settings = config.load_settings()
+    
+    # Setup logging with Telegram error notifications
+    setup_logging(
+        log_level=config.LOG_LEVEL,
+        telegram_token=settings.telegram_token,
+        telegram_chat_id=settings.telegram_chat_id
+    )
+    
+    logger.info("Trading Signal Bot starting...")
+    
     app = Application.builder().token(settings.telegram_token).build()
 
     bot = app.bot  # type: Bot
@@ -246,19 +289,15 @@ def main():
     # Setup APScheduler for cron-based scheduling
     scheduler = AsyncIOScheduler(timezone=settings.timezone)
     
-    # Schedule to run at the beginning of each hour (minute=0)
-    # Using cron trigger: every hour at 0 minutes
+    # Schedule to run using configuration parameters
     scheduler.add_job(
         scheduled_run_cycle,
-        trigger="cron",
-        minute=0,  # Run at the beginning of each hour
-        max_instances=1,  # Prevent overlapping runs
-        coalesce=True,    # If multiple runs are queued, run only the latest
-        timezone=settings.timezone
+        timezone=settings.timezone,
+        **config.SCHEDULER_JOB_CONFIG
     )
     
     scheduler.start()
-    print(f"Scheduler started - will run at the beginning of each hour ({settings.timezone})")
+    logger.info(f"Scheduler started - will run at the beginning of each hour ({settings.timezone})")
 
     # Notify start and run polling
     async def on_startup(app_inner: Application):

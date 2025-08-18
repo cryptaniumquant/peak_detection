@@ -3,17 +3,20 @@ import os
 from datetime import datetime, timezone
 from typing import Optional
 
-try:
-    # When imported as part of the package (e.g., from peak_detection)
-    from bot_service.config import STATE_DIR
-except ImportError:  # pragma: no cover - fallback for running from bot_service directory
-    # When running `python run_bot.py` from within bot_service/
-    from config import STATE_DIR
+# Import from parent directory
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(current_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+import config
 
 
 class StateStore:
     def __init__(self, filename: str = 'bot_state.json'):
-        self.path = os.path.join(STATE_DIR, filename)
+        self.path = os.path.join(config.STATE_DIR, filename)
         self._state = {
             'strategies': {},  # strategy -> { last_notified_ts: iso }
             'simulation_now': None,

@@ -1,18 +1,25 @@
 import os
 from datetime import datetime, timedelta, timezone
 import pandas as pd
+import numpy as np
+import logging
 import matplotlib
 matplotlib.use('Agg')  # headless backend for servers
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.gridspec import GridSpec
 
-try:
-    # When imported as part of the package (e.g., from peak_detection)
-    from bot_service.config import VIZ_DIR
-except ImportError:  # pragma: no cover - fallback for running from bot_service directory
-    # When running `python run_bot.py` from within bot_service/
-    from config import VIZ_DIR
+logger = logging.getLogger(__name__)
+
+# Import from parent directory
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(current_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+import config
 
 
 def visualize_last_7_days(joined_csv_path: str, upto_ts: datetime | None = None) -> str | None:
@@ -104,14 +111,14 @@ def visualize_last_7_days(joined_csv_path: str, upto_ts: datetime | None = None)
             ax.xaxis.set_major_locator(mdates.AutoDateLocator())
 
         fig.autofmt_xdate()
-        os.makedirs(VIZ_DIR, exist_ok=True)
-        out_path = os.path.join(VIZ_DIR, f"{strategy_name}_last7.png")
+        os.makedirs(config.VIZ_DIR, exist_ok=True)
+        out_path = os.path.join(config.VIZ_DIR, f"{strategy_name}_last7.png")
         plt.tight_layout()
         fig.savefig(out_path, dpi=200, bbox_inches='tight')
         plt.close(fig)
         return out_path
     except Exception as e:
-        print(f"Visualization error for {joined_csv_path}: {e}")
+        logger.error(f"Visualization error for {joined_csv_path}: {e}")
         return None
 
 
@@ -175,11 +182,11 @@ def visualize_last_7_days_df(df: pd.DataFrame, strategy_name: str, upto_ts: date
 
         fig.autofmt_xdate()
         ax3.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
-        os.makedirs(VIZ_DIR, exist_ok=True)
-        out_path = os.path.join(VIZ_DIR, f"{strategy_name}_last7.png")
+        os.makedirs(config.VIZ_DIR, exist_ok=True)
+        out_path = os.path.join(config.VIZ_DIR, f"{strategy_name}_last7.png")
         fig.savefig(out_path, dpi=200, bbox_inches='tight')
         plt.close(fig)
         return out_path
     except Exception as e:
-        print(f"Visualization (DF) error for {strategy_name}: {e}")
+        logger.error(f"Visualization (DF) error for {strategy_name}: {e}")
         return None

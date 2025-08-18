@@ -30,4 +30,7 @@ Thumbs.db
 # *.csv
 # *.json
 # processed_data/
-# visualizations/
+
+# Generated files and temporary directories
+visualizations/
+bot_service/state/

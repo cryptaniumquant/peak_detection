@@ -1,7 +1,15 @@
 import os
 import pandas as pd
 import numpy as np
-from scipy.signal import find_peaks, savgol_filter
+import logging
+from scipy.signal import savgol_filter, find_peaks
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from datetime import datetime, timedelta
+import os
+import glob
+
+logger = logging.getLogger(__name__)
 
 def process_df(df_in: pd.DataFrame, absolute_threshold: float | None = None) -> pd.DataFrame | None:
     """
@@ -109,13 +117,13 @@ def process_file(filepath, output_dir):
     if 'real_Value' in df.columns:
         columns_to_use.append('real_Value')
     if not columns_to_use:
-        print(f"No 'backtest_Value' or 'real_Value' in {filepath}, skipping.")
+        logger.warning(f"No 'backtest_Value' or 'real_Value' in {filepath}, skipping.")
         return
     df_out = df[columns_to_use].copy()
     
     # Создаем комбинированную серию из бэктеста и реальных торгов
     if 'backtest_Value' not in df_out.columns:
-        print(f"No 'backtest_Value' in {filepath}, skipping.")
+        logger.warning(f"No 'backtest_Value' in {filepath}, skipping.")
         return
     
     # Создаем комбинированную серию
@@ -244,7 +252,7 @@ def process_file(filepath, output_dir):
     filename = os.path.basename(filepath)
     output_path = os.path.join(output_dir, filename.replace('.csv', '_joined_with_peak.csv'))
     df_out.to_csv(output_path)
-    print(f"Saved: {output_path}")
+    logger.info(f"Saved: {output_path}")
 
 def main():
     input_dir = r'c:\Users\Ilya3\AlgoYES\Cryptanium_work_algo_opt\data_prep\adjusted_data\trend\complete'

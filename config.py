@@ -4,22 +4,18 @@ Contains all constants and default values.
 User-specific credentials are imported from local_settings.py
 """
 import os
+import os
 import json
-import csv
+import logging
 from dataclasses import dataclass
-from typing import Optional, List, Dict
+from typing import List, Dict
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # DATABASE CONFIGURATION
 # =============================================================================
-# Database connection parameters - override in local_settings.py
-DB_HOST = None
-DB_PORT = None
-DB_DATABASE = None
-DB_USER = None
-DB_PASSWORD = None
-
-# SQLAlchemy async database URI - constructed from individual params or override in local_settings.py
+# SQLAlchemy async database URI - set in local_settings.py
 SQLALCHEMY_DATABASE_URI = None
 
 # =============================================================================
@@ -44,11 +40,21 @@ VIZ_WINDOW_DAYS = 7     # Days of data for visualization
 
 # Scheduling (APScheduler cron-based)
 SCHEDULE_MINUTES = 60   # Legacy setting - now uses cron scheduling
-SCHEDULER_CRON_MINUTE = 0  # Run at minute 0 of each hour (beginning of hour)
-SCHEDULER_CRON_HOUR = "*"  # Every hour
+
+# Scheduler job configuration
+SCHEDULER_JOB_CONFIG = {
+    'trigger': 'cron',
+    'minute': 0,           # Run at minute 0 of each hour (beginning of hour)
+    'hour': '*',           # Every hour
+    'max_instances': 1,    # Prevent overlapping runs
+    'coalesce': True,      # If multiple runs are queued, run only the latest
+}
 
 # Timezone
 TIMEZONE = 'Europe/Moscow'
+
+# Logging configuration
+LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 # Simulation parameters
 SIM_WINDOW_HOURS = 168  # 7 days
@@ -99,10 +105,10 @@ def load_strategy_thresholds() -> Dict[str, float]:
         try:
             with open(STRATEGY_THRESHOLDS_JSON, 'r') as f:
                 thresholds = json.load(f)
-                print(f"Loaded {len(thresholds)} strategy thresholds from JSON")
+                logger.info(f"Loaded {len(thresholds)} strategy thresholds from JSON")
                 return thresholds
         except Exception as e:
-            print(f"Error loading strategy thresholds from JSON: {e}")
+            logger.error(f"Error loading strategy thresholds from JSON: {e}")
     
     # Fallback to CSV
     if os.path.exists(STRATEGY_QUANTILE_CSV):
@@ -116,12 +122,12 @@ def load_strategy_thresholds() -> Dict[str, float]:
                     threshold = float(row.get('quantile_value', 0))
                     if strategy:
                         thresholds[strategy] = threshold
-            print(f"Loaded {len(thresholds)} strategy thresholds from CSV fallback")
+            logger.info(f"Loaded {len(thresholds)} strategy thresholds from CSV fallback")
             return thresholds
         except Exception as e:
-            print(f"Error loading strategy thresholds from CSV: {e}")
+            logger.error(f"Error loading strategy thresholds from CSV: {e}")
     
-    print("No strategy thresholds found, using dynamic quantiles")
+    logger.warning("No strategy thresholds found, using dynamic quantiles")
     return {}
 
 def load_settings() -> Settings:
@@ -148,30 +154,18 @@ def load_settings() -> Settings:
     
     return settings
 
-def get_db_connection_params():
-    """Get database connection parameters"""
-    if not all([DB_HOST, DB_PORT, DB_DATABASE, DB_USER, DB_PASSWORD]):
-        raise ValueError("Database connection parameters are required in local_settings.py")
-    
-    return {
-        'host': DB_HOST,
-        'port': DB_PORT,
-        'database': DB_DATABASE,
-        'user': DB_USER,
-        'password': DB_PASSWORD
-    }
-
 def get_async_database_uri():
     """Get async database URI for SQLAlchemy"""
-    if SQLALCHEMY_DATABASE_URI:
-        # Use provided URI, replace pymysql with asyncmy for async support
+    if not SQLALCHEMY_DATABASE_URI:
+        raise ValueError("SQLALCHEMY_DATABASE_URI is required in local_settings.py")
+    
+    # Ensure async driver is used
+    if '+pymysql' in SQLALCHEMY_DATABASE_URI:
         return SQLALCHEMY_DATABASE_URI.replace('+pymysql', '+asyncmy')
+    elif '+asyncmy' not in SQLALCHEMY_DATABASE_URI and 'mysql://' in SQLALCHEMY_DATABASE_URI:
+        return SQLALCHEMY_DATABASE_URI.replace('mysql://', 'mysql+asyncmy://')
     
-    # Construct from individual parameters
-    if not all([DB_HOST, DB_PORT, DB_DATABASE, DB_USER, DB_PASSWORD]):
-        raise ValueError("Database connection parameters are required in local_settings.py")
-    
-    return f"mysql+asyncmy://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_DATABASE}"
+    return SQLALCHEMY_DATABASE_URI
 
 # =============================================================================
 # IMPORT LOCAL SETTINGS (MUST BE AT THE END)
@@ -180,7 +174,7 @@ def get_async_database_uri():
 try:
     # Try to import from current directory first
     from local_settings import *
-    print("Local settings imported successfully")
+    logger.info("Local settings imported successfully")
 except ImportError:
     # If not found, try to import from the peak_detection directory
     import sys
@@ -202,10 +196,10 @@ except ImportError:
                 if not attr_name.startswith('_'):
                     globals()[attr_name] = getattr(local_settings_module, attr_name)
             
-            print("Local settings imported successfully")
+            logger.info("Local settings imported successfully")
         except Exception as e:
-            print(f"ERROR importing local_settings: {e}")
+            logger.error(f"ERROR importing local_settings: {e}")
     else:
-        print("WARNING: local_settings.py not found. Please create it with your credentials.")
+        logger.warning("local_settings.py not found. Please create it with your credentials.")
 except Exception as e:
-    print(f"ERROR importing local_settings: {e}")
+    logger.error(f"ERROR importing local_settings: {e}")

@@ -11,24 +11,21 @@ RUN echo "Europe/Moscow" > /etc/timezone \
     && ln -fs /usr/share/zoneinfo/Europe/Moscow /etc/localtime \
     && dpkg-reconfigure -f noninteractive tzdata
 
-# Upgrade pip and install Python dependencies
-COPY bot_service/requirements.txt /root/
-RUN python -m pip install --upgrade pip \
-    && pip install -r /root/requirements.txt
-
-# Create volumes for SSH keys and keyring (if needed for future extensions)
-VOLUME /root/.ssh /root/.local/share/python_keyring
-
 # Set working directory
 WORKDIR /root/app
 
-# Copy the entire project
+# Copy requirements first (rarely changes - better caching)
+COPY bot_service/requirements.txt ./bot_service/
+
+# Upgrade pip and install Python dependencies
+RUN python -m pip install --upgrade pip \
+    && pip install -r ./bot_service/requirements.txt
+
+# Set environment variable for Docker detection
+ENV DOCKER_ENV=1
+
+# Copy the entire project (changes frequently - last layer)
 COPY . ./
 
-# Create entrypoint script
-COPY entrypoint.sh /root/app/entrypoint.sh
-RUN chmod +x /root/app/entrypoint.sh
-
-# Set entrypoint and default command
-ENTRYPOINT ["/root/app/entrypoint.sh"]
-CMD ["python", "run_bot.py"]
+# Default command - run bot directly
+CMD ["python", "bot_service/run_bot.py"]

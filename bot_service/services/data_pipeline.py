@@ -1,16 +1,21 @@
-import os
-import sys
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional
-
 import pandas as pd
+import numpy as np
+import logging
+from datetime import datetime, timedelta, timezone
+import asyncio
+from typing import List, Optional, Dict, Any
 
-# Ensure we can import sibling modules from peak_detection
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # .../peak_detection
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+# Import from parent directory
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(current_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
-from bot_service.config import PROCESSED_DIR, load_strategy_thresholds  # noqa: E402  # left for compatibility, not used for I/O now
+logger = logging.getLogger(__name__)
+
+import config
 from bot_service.services.state_store import StateStore  # noqa: E402
 from bot_service.services.visualization_service import visualize_last_7_days, visualize_last_7_days_df  # noqa: E402
 
@@ -19,7 +24,7 @@ from strategy_data_processor import process_strategy_df_hours_async, process_str
 from calculate_peak import process_file as calc_process_file, process_df as calc_process_df  # noqa: E402
 
 
-CSV_STRATEGY_PATH = os.path.join(BASE_DIR, 'strategy_quantile_values.csv')
+CSV_STRATEGY_PATH = os.path.join(config.BASE_DIR, 'strategy_quantile_values.csv')
 
 
 def list_strategies(whitelist: List[str] | None) -> List[str]:
@@ -29,7 +34,7 @@ def list_strategies(whitelist: List[str] | None) -> List[str]:
         strategies = get_csv_strategies(CSV_STRATEGY_PATH) or []
         return strategies
     except Exception as e:
-        print(f"Failed to read strategies: {e}")
+        logger.error(f"Failed to read strategies: {e}")
         return []
 
 
@@ -47,7 +52,7 @@ async def build_viz_df_for_strategy_async(strategy: str, viz_window_days: int = 
             base_df.index = pd.to_datetime(base_df.index)
         if base_df.index.tz is None:
             base_df.index = base_df.index.tz_localize('UTC')
-        thresholds = load_strategy_thresholds()
+        thresholds = config.load_strategy_thresholds()
         abs_thr = thresholds.get(strategy)
         out_df = calc_process_df(base_df, absolute_threshold=abs_thr)
         if out_df is None or out_df.empty:
@@ -56,7 +61,7 @@ async def build_viz_df_for_strategy_async(strategy: str, viz_window_days: int = 
             out_df.index = out_df.index.tz_localize('UTC')
         return out_df
     except Exception as e:
-        print(f"build_viz_df_for_strategy error for {strategy}: {e}")
+        logger.error(f"build_viz_df_for_strategy error for {strategy}: {e}")
         return None
 
 def build_viz_df_for_strategy(strategy: str, viz_window_days: int = 7) -> pd.DataFrame | None:
@@ -130,7 +135,7 @@ async def run_realtime_cycle_async(strategies: List[str], state: StateStore, det
                 if viz_df is not None and not viz_df.empty:
                     events.append({'strategy': s, 'df': viz_df, 'last_signal_ts': latest_ts})
         except Exception as e:
-            print(f"Realtime cycle error for {s}: {e}")
+            logger.error(f"Realtime cycle error for {s}: {e}")
             continue
     return events
 
@@ -193,7 +198,7 @@ async def run_simulation_cycle_async(strategies: List[str], state: StateStore, w
                 last_signal_ts = new_points.index.max()
                 events.append({'strategy': s, 'df': out_df, 'last_signal_ts': last_signal_ts})
         except Exception as e:
-            print(f"Simulation cycle error for {s}: {e}")
+            logger.error(f"Simulation cycle error for {s}: {e}")
             continue
 
     return events, new_now
@@ -240,7 +245,7 @@ async def run_simulation_at_async(strategy: str, at_dt: datetime, window_hours: 
     Returns: {strategy, joined_path, last_signal_ts} or None.
     """
     try:
-        thresholds = load_strategy_thresholds()
+        thresholds = config.load_strategy_thresholds()
         abs_thr = thresholds.get(strategy)
         
         hourly_df = await process_strategy_df_async(strategy, days=max(30, window_hours // 24 + 2))
@@ -271,7 +276,7 @@ async def run_simulation_at_async(strategy: str, at_dt: datetime, window_hours: 
             return {'strategy': strategy, 'df': viz_df, 'last_signal_ts': last_ts}
         return None
     except Exception as e:
-        print(f"Simulation-at error for {strategy} @ {at_dt}: {e}")
+        logger.error(f"Simulation-at error for {strategy} @ {at_dt}: {e}")
         return None
 
 def run_simulation_at(strategy: str, at_dt: datetime, window_hours: int, detect_hours: int = 25, viz_window_days: int = 7) -> Optional[dict]:
