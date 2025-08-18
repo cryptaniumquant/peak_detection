@@ -1,29 +1,20 @@
 import pandas as pd
 import numpy as np
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 import asyncio
 from typing import List, Optional, Dict, Any
 
-# Import from parent directory
-import sys
-import os
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(os.path.dirname(current_dir))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-logger = logging.getLogger(__name__)
-
 import config
-from bot_service.services.state_store import StateStore  # noqa: E402
-from bot_service.services.visualization_service import visualize_last_7_days, visualize_last_7_days_df  # noqa: E402
+from .state_store import StateStore
+from .visualization_service import visualize_last_7_days, visualize_last_7_days_df
 
 # Import existing processors (in-memory versions)
-from strategy_data_processor import process_strategy_df_hours_async, process_strategy_df_async, process_strategy_df, process_strategy_df_hours, get_csv_strategies  # noqa: E402
-from calculate_peak import process_file as calc_process_file, process_df as calc_process_df  # noqa: E402
+from strategy_data_processor import process_strategy_df_hours_async, process_strategy_df_async, process_strategy_df, process_strategy_df_hours, get_csv_strategies
+from calculate_peak import process_file as calc_process_file, process_df as calc_process_df
 
-
+logger = logging.getLogger(__name__)
 CSV_STRATEGY_PATH = os.path.join(config.BASE_DIR, 'strategy_quantile_values.csv')
 
 
@@ -91,7 +82,7 @@ async def run_realtime_cycle_async(strategies: List[str], state: StateStore, det
     Returns list of events: {strategy, joined_path, last_signal_ts}
     """
     events: list[dict] = []
-    thresholds = load_strategy_thresholds()
+    thresholds = config.load_strategy_thresholds()
     for s in strategies:
         try:
             # In-memory processing: fetch only last <detect_hours> for detection
@@ -171,7 +162,7 @@ async def run_simulation_cycle_async(strategies: List[str], state: StateStore, w
     new_now = now + timedelta(hours=step_hours)
 
     events: list[dict] = []
-    thresholds = load_strategy_thresholds()
+    thresholds = config.load_strategy_thresholds()
     for s in strategies:
         try:
             hourly_df = await process_strategy_df_async(s, days=max(30, window_hours // 24 + 2))

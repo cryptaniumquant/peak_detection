@@ -24,8 +24,8 @@ RUN python -m pip install --upgrade pip \
 # Set environment variable for Docker detection
 ENV DOCKER_ENV=1
 
+# Default command - run bot as module
+CMD ["python", "-m", "bot_service.run_bot"]
+
 # Copy the entire project (changes frequently - last layer)
 COPY . ./
-
-# Default command - run bot directly
-CMD ["python", "bot_service/run_bot.py"]

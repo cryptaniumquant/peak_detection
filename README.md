@@ -75,12 +75,11 @@ LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR
 MODE = 'real'  # 'real' или 'simulation'
 STRATEGY_WHITELIST = []  # Пустой список = все стратегии из CSV
 
-# Настройки планировщика (опционально)
+# Настройки планировщика (только расписание)
 SCHEDULER_JOB_CONFIG = {
     'trigger': 'cron',
     'minute': 0,  # Запуск каждый час в начале часа
-    'max_instances': 1,
-    'coalesce': True
+    'hour': '*',  # Каждый час
 }
 ```
 
@@ -188,7 +187,7 @@ python -c "from bot_service.services import data_pipeline; print('Pipeline OK')"
 ```bash
 # Убедитесь что запускаете из правильной директории
 cd peak_detection_dev
-python bot_service/run_bot.py
+python -m bot_service.run_bot
 ```
 
 **Нет подключения к БД:**

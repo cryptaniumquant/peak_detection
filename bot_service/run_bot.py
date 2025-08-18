@@ -8,25 +8,17 @@ import logging
 from functools import wraps
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# Import from parent directory
-import sys
-import os
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
 import config
 from logging_config import setup_logging
-from services.notifier import Notifier
-from services.state_store import StateStore
-from services.data_pipeline import (
+from .services.notifier import Notifier
+from .services.state_store import StateStore
+from .services.data_pipeline import (
     list_strategies,
     run_realtime_cycle,
     run_realtime_cycle_async,
     run_simulation_cycle_async,
     build_notification_payload,
-    run_simulation_at_async,
+    get_strategy_data_async,
     build_viz_df_for_strategy_async,
 )
 
@@ -289,18 +281,19 @@ def main():
     # Setup APScheduler for cron-based scheduling
     scheduler = AsyncIOScheduler(timezone=settings.timezone)
     
-    # Schedule to run using configuration parameters
+    # Schedule to run using configuration parameters with hardcoded safety settings
     scheduler.add_job(
         scheduled_run_cycle,
         timezone=settings.timezone,
+        max_instances=1,    # Prevent overlapping runs (hardcoded)
+        coalesce=True,      # If multiple runs are queued, run only the latest (hardcoded)
         **config.SCHEDULER_JOB_CONFIG
     )
-    
-    scheduler.start()
-    logger.info(f"Scheduler started - will run at the beginning of each hour ({settings.timezone})")
 
     # Notify start and run polling
     async def on_startup(app_inner: Application):
+        scheduler.start()
+        logger.info(f"Scheduler started - will run at the beginning of each hour ({settings.timezone})")
         await notifier.send_text("Bot started. Commands: /run_now, /simulate_at, /all_viz\nScheduled to run at the beginning of each hour.")
 
     app.post_init = on_startup

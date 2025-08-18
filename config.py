@@ -41,13 +41,11 @@ VIZ_WINDOW_DAYS = 7     # Days of data for visualization
 # Scheduling (APScheduler cron-based)
 SCHEDULE_MINUTES = 60   # Legacy setting - now uses cron scheduling
 
-# Scheduler job configuration
+# Scheduler job configuration (only schedule parameters - others are hardcoded)
 SCHEDULER_JOB_CONFIG = {
     'trigger': 'cron',
     'minute': 0,           # Run at minute 0 of each hour (beginning of hour)
     'hour': '*',           # Every hour
-    'max_instances': 1,    # Prevent overlapping runs
-    'coalesce': True,      # If multiple runs are queued, run only the latest
 }
 
 # Timezone

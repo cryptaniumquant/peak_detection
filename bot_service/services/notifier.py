@@ -1,6 +1,6 @@
 from typing import Optional
 from io import BytesIO
-
+import config
 from telegram import Bot
 
 
