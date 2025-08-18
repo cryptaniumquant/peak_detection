@@ -1,12 +1,21 @@
 # Trading Signal Bot
 
-Автоматизированный бот для обнаружения торговых сигналов с использованием пиковой детекции и уведомлений через Telegram.
+Автоматизированный бот для обнаружения торговых сигналов с использованием алгоритма пиковой детекции Savitzky-Golay и уведомлений через Telegram.
+
+## ✨ Ключевые особенности
+
+- 🔍 **Алгоритм пиковой детекции** - Savitzky-Golay фильтр для точного определения сигналов
+- 📱 **Telegram интеграция** - Автоматические уведомления с графиками
+- 🔐 **Безопасность** - Авторизация команд по chat_id
+- 📊 **Визуализация** - Автоматическое создание графиков для анализа
+- 🐳 **Docker готовность** - Полная контейнеризация для продакшена
+- 📝 **Структурированное логирование** - Консоль + Telegram уведомления об ошибках
+- ⏰ **Планировщик** - Автоматический запуск по расписанию
+- 💾 **Персистентное состояние** - Сохранение состояния между перезапусками
 
 ## 🚀 Быстрый старт
 
-### 🐳 Docker (Рекомендуется для продакшена)
-
-**Самый простой способ запуска на любой системе:**
+### 🐳 Docker (Рекомендуется)
 
 ```bash
 # 1. Создайте local_settings.py с вашими настройками
@@ -17,6 +26,8 @@ chmod +x run.sh
 
 **Управление контейнером:**
 ```bash
+./run.sh build    # Сборка образа
+./run.sh run      # Запуск контейнера
 ./run.sh logs     # Просмотр логов
 ./run.sh status   # Статус контейнера
 ./run.sh restart  # Перезапуск
@@ -25,21 +36,25 @@ chmod +x run.sh
 ./run.sh clean    # Полная очистка
 ```
 
-### 💻 Локальная установка (для разработки)
+### 💻 Локальная разработка
 
 ```bash
-# Клонируйте репозиторий и перейдите в директорию проекта
+# Клонируйте репозиторий
+git clone <repository-url>
 cd peak_detection_dev
 
-# Запустите автоматическую установку
+# Автоматическая установка
 python setup.py
-```
 
-Скрипт установки автоматически:
-- Создаст виртуальную среду в `bot_service/.venv`
-- Установит все зависимости
-- Проверит конфигурацию
-- Протестирует импорты
+# Или ручная установка
+python -m venv bot_service/.venv
+source bot_service/.venv/bin/activate  # Linux/Mac
+# bot_service\.venv\Scripts\activate   # Windows
+pip install -r bot_service/requirements.txt
+
+# Запуск бота
+python bot_service/run_bot.py
+```
 
 ## ⚙️ Конфигурация
 
@@ -48,27 +63,30 @@ python setup.py
 Создайте файл `local_settings.py` в корневой директории:
 
 ```python
-# Database credentials
-DB_HOST = 'your_host'
-DB_PORT = 'your_port'
-DB_DATABASE = 'your_database'
-DB_USER = 'your_user'
-DB_PASSWORD = 'your_password'
+# Обязательные настройки
+TELEGRAM_BOT_TOKEN = 'your_bot_token_here'
+TELEGRAM_CHAT_ID = 123456789  # ID чата для уведомлений
 
-# Telegram bot credentials
-TELEGRAM_BOT_TOKEN = 'your_bot_token'
-TELEGRAM_CHAT_ID = 'your_chat_id'
+# База данных (async SQLAlchemy URI)
+SQLALCHEMY_DATABASE_URI = 'mysql+asyncmy://user:password@host:port/database'
 
-# Bot settings
-MODE = 'real'  # or 'simulate'
-REAL_DETECT_HOURS = 25
-VIZ_WINDOW_DAYS = 7
-TIMEZONE = 'Europe/Moscow'
+# Опциональные настройки
+LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR
+MODE = 'real'  # 'real' или 'simulation'
+STRATEGY_WHITELIST = []  # Пустой список = все стратегии из CSV
+
+# Настройки планировщика (опционально)
+SCHEDULER_JOB_CONFIG = {
+    'trigger': 'cron',
+    'minute': 0,  # Запуск каждый час в начале часа
+    'max_instances': 1,
+    'coalesce': True
+}
 ```
 
 ### 2. Настройка пороговых значений
 
-Отредактируйте `strategy_thresholds.json`:
+Отредактируйте `strategy_thresholds.json` для настройки индивидуальных порогов:
 
 ```json
 {
@@ -77,177 +95,129 @@ TIMEZONE = 'Europe/Moscow'
 }
 ```
 
-### 3. Локальный запуск
-
-```bash
-# Просто запустите из корневой директории
-python run_bot.py
-```
-
 ## 📁 Структура проекта
 
 ```
 peak_detection_dev/
-├── run_bot.py              # 🚀 Главный скрипт запуска
-├── setup.py                # 🔧 Скрипт установки
-├── config.py               # ⚙️ Основная конфигурация
-├── local_settings.py       # 🔐 Локальные настройки (создать)
-├── strategy_thresholds.json # 📊 Пороговые значения стратегий
-├── calculate_peak.py       # 📈 Алгоритм пиковой детекции
+├── bot_service/            # 🤖 Основной модуль бота
+│   ├── run_bot.py         # 🚀 Главный скрипт запуска
+│   ├── services/          # 📦 Сервисы бота
+│   │   ├── data_pipeline.py    # 🔄 Пайплайн обработки данных
+│   │   ├── notifier.py         # 📱 Telegram уведомления
+│   │   ├── state_store.py      # 💾 Управление состоянием
+│   │   └── visualization_service.py # 📊 Создание графиков
+│   └── requirements.txt   # 📋 Python зависимости
+├── config.py              # ⚙️ Единая конфигурация
+├── logging_config.py      # 📝 Настройка логирования
+├── local_settings.py      # 🔐 Локальные настройки (создать)
+├── calculate_peak.py      # 📈 Алгоритм пиковой детекции
 ├── strategy_data_processor.py # 🗄️ Обработка данных БД
-├── Dockerfile              # 🐳 Docker образ
-├── entrypoint.sh           # 🔧 Docker entrypoint
-├── run.sh                  # 🚀 Docker управление
-├── .dockerignore           # 🚫 Docker исключения
-├── bot_service/            # 🤖 Сервис бота
-│   ├── .venv/             # 🐍 Виртуальная среда
-│   ├── run_bot.py         # 🤖 Основной код бота
-│   ├── requirements.txt   # 📦 Зависимости
-│   ├── services/          # 🛠️ Сервисы бота
-│   │   ├── data_pipeline.py
-│   │   ├── notifier.py
-│   │   ├── state_store.py
-│   │   └── visualization_service.py
-│   └── state/             # 💾 Состояние бота
-└── README.md              # 📖 Этот файл
+├── strategy_thresholds.json # 📊 Пороговые значения стратегий
+├── Dockerfile             # 🐳 Docker конфигурация
+├── run.sh                 # 🔧 Скрипт управления Docker
+└── setup.py               # 🛠️ Автоматическая установка
 ```
 
-## 🔧 Команды бота
+## 🤖 Telegram команды
 
-- `/run_now` - Запустить цикл обнаружения сигналов вручную
-- `/simulate_at <strategy> <YYYY-MM-DD HH:MM>` - Симуляция сигнала в конкретное время
-- `/all_viz` - Создать визуализации для всех стратегий
+После запуска бота доступны следующие команды:
 
-## 🐳 Docker Deployment
+- `/run_now` - Запустить анализ немедленно
+- `/simulate_at YYYY-MM-DD HH:MM` - Симуляция на определенное время
+- `/all_viz` - Создать графики для всех стратегий
 
-### Системные требования
-- Docker и Docker Compose
-- Linux/macOS/Windows с WSL2
-- Минимум 1GB RAM
-- Доступ к MySQL базе данных
+**Важно:** Команды работают только для авторизованного chat_id из конфигурации.
 
-### Особенности Docker версии
-- **Автоматический перезапуск** при сбоях
-- **Ротация логов** (100MB, 3 файла)
-- **Изоляция зависимостей** от хост-системы
-- **Правильная настройка timezone** (Europe/Moscow)
-- **Безопасность**: credentials монтируются отдельно
+## 📊 Логирование и мониторинг
 
-### Переменные окружения
+Система логирования включает:
 
-- `MODE` - Режим работы: `real` или `simulate`
-- `REAL_DETECT_HOURS` - Часы для обнаружения в реальном режиме (по умолчанию: 25)
-- `VIZ_WINDOW_DAYS` - Дни для визуализации (по умолчанию: 7)
-- `TIMEZONE` - Часовой пояс (по умолчанию: Europe/Moscow)
+- **Консольные логи** - Все события выводятся в консоль
+- **Telegram алерты** - Критические ошибки автоматически отправляются в чат
+- **Уровни логирования** - DEBUG, INFO, WARNING, ERROR
+- **Ротация логов** - Автоматическая ротация в Docker
 
-### Расписание
-
-Бот автоматически запускается каждый час в начале часа (XX:00) используя APScheduler с cron-триггером.
-
-## 🗄️ База данных
-
-Система использует **асинхронные** запросы к базе данных с помощью:
-- SQLAlchemy async engine
-- asyncmy драйвер для MySQL
-- Оптимизированные запросы для лучшей производительности
-
-## 🔍 Алгоритм обнаружения
-
-1. **Сбор данных**: Получение последних N часов данных PnL
-2. **Сглаживание**: Применение фильтра Савицкого-Голая (окно=25, полином=1)
-3. **Пиковая детекция**: Анализ первой и второй производных
-4. **Пороговые значения**: Использование абсолютных порогов или динамических квантилей
-5. **Cooldown система**: 24ч блокировка + 24ч восстановление
-6. **Уведомления**: Отправка сигналов через Telegram с графиками
-
-## 🐛 Отладка и мониторинг
-
-### Docker логи
-```bash
-./run.sh logs        # Просмотр логов
-./run.sh shell       # Доступ к контейнеру
-docker logs trading-bot -f  # Следить за логами в реальном времени
+Настройка уровня логирования в `local_settings.py`:
+```python
+LOG_LEVEL = 'INFO'  # DEBUG для детальной отладки
 ```
+
+## 🐳 Docker особенности
+
+### Персистентные данные
+
+Контейнер автоматически создает volume-маппинги для:
+
+- `./visualizations` → `/root/app/visualizations` - Временные графики
+- `./bot_service/state` → `/root/app/bot_service/state` - Состояние бота
+- `./local_settings.py` → `/root/app/local_settings.py` - Конфигурация (read-only)
+
+### Автоматический перезапуск
+
+Контейнер настроен с `--restart unless-stopped` для автоматического восстановления после сбоев.
+
+## 🔧 Разработка
 
 ### Локальная отладка
 ```bash
-python -c "from config import load_settings; print('Config OK')"
+python -c "import config; print('Config OK')"
+python -c "from bot_service.services import data_pipeline; print('Pipeline OK')"
 ```
 
 ### Проверка состояния
 ```bash
-./run.sh status      # Статус контейнера
-docker ps -f name=trading-bot  # Детальная информация
+./run.sh status
+./run.sh logs
 ```
 
-## 📊 Мониторинг
+## 📈 Алгоритм
 
-Бот логирует:
-- Успешные подключения к БД
-- Обнаруженные сигналы и их параметры
-- Ошибки обработки данных
-- Статистику по стратегиям
-- Отправленные уведомления
-- Ошибки выполнения и их причины
+Бот использует алгоритм Savitzky-Golay для сглаживания временных рядов и детекции пиков:
+
+1. **Загрузка данных** - Получение данных стратегий из БД
+2. **Ресэмплинг** - Агрегация к часовым данным
+3. **Фильтрация** - Применение Savitzky-Golay фильтра
+4. **Детекция пиков** - Поиск точек ребалансировки
+5. **Уведомления** - Отправка сигналов в Telegram с графиками
 
 ## 🚨 Troubleshooting
 
 ### Частые проблемы
 
-**Docker контейнер не запускается:**
+**Ошибка импорта config:**
 ```bash
-# Проверьте логи
-./run.sh logs
-
-# Проверьте конфигурацию
-./run.sh shell
-cat local_settings.py
+# Убедитесь что запускаете из правильной директории
+cd peak_detection_dev
+python bot_service/run_bot.py
 ```
 
 **Нет подключения к БД:**
-- Проверьте параметры подключения в `local_settings.py`
-- Убедитесь, что БД доступна из Docker контейнера
-- Проверьте firewall настройки
+- Проверьте `SQLALCHEMY_DATABASE_URI` в `local_settings.py`
+- Убедитесь что используете async драйвер (`mysql+asyncmy://`)
 
 **Telegram бот не отвечает:**
 - Проверьте `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID`
-- Убедитесь, что бот добавлен в чат
-- Проверьте интернет соединение контейнера
+- Убедитесь что бот добавлен в чат
 
-**Нет сигналов:**
-- Проверьте пороговые значения в `strategy_thresholds.json`
-- Убедитесь, что в БД есть свежие данные
-- Проверьте режим работы (`MODE` в настройках)
-
-### Полезные команды
-
+### Логи Docker
 ```bash
-# Перезапуск с полной пересборкой
-./run.sh clean && ./run.sh run
-
-# Мониторинг ресурсов
-docker stats trading-bot
-
-# Экспорт логов
-docker logs trading-bot > bot_logs.txt 2>&1
+./run.sh logs -f  # Следить за логами в реальном времени
+docker logs peak_detection_bot --tail 100
 ```
 
-## 🔄 Обновления
+## 📝 Changelog
 
-Для обновления зависимостей:
-```bash
-cd bot_service
-.venv\Scripts\Activate.ps1  # Windows
-pip install -r requirements.txt --upgrade
-```
-
-## 📝 Логи
-
-Все логи выводятся в консоль. Для сохранения в файл:
-```bash
-python run_bot.py > bot.log 2>&1
-```
+### v2.0.0 (Текущая версия)
+- ✅ Полное рефакторинг логирования
+- ✅ Telegram уведомления об ошибках  
+- ✅ Авторизация команд по chat_id
+- ✅ Упрощенная архитектура конфигурации
+- ✅ Оптимизированный Docker setup
+- ✅ Персистентное состояние
+- ✅ Структурированные логи
 
 ---
 
-**💡 Совет**: Используйте `python setup.py` для первоначальной настройки и `python run_bot.py` для запуска бота.
+**Автор:** Cryptanium Quant Team  
+**Лицензия:** MIT  
+**Поддержка:** [GitHub Issues](https://github.com/cryptaniumquant/peak_detection/issues)
