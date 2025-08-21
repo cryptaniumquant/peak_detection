@@ -54,12 +54,11 @@ Thumbs.db
 *.temp
 temp/
 tmp/
+*.bak
 
 # Data and output directories (create in container)
 processed_data/
 visualizations/
-*.csv
-*.json.bak
 
 # Documentation
 README.md
