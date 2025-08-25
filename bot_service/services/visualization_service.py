@@ -116,8 +116,9 @@ def visualize_last_7_days(joined_csv_path: str, upto_ts: datetime | None = None)
 
 def visualize_last_7_days_df(df: pd.DataFrame, strategy_name: str, upto_ts: datetime | None = None) -> str | None:
     """
-    Create a 7-day visualization directly from an in-memory DataFrame with columns like
+    Create visualization directly from an in-memory DataFrame with columns like
     'combined_Value', 'derivative', 'second_derivative', 'rebalance_point', 'weight'.
+    Uses VIZ_WINDOW_DAYS from config for the time window.
     Saves PNG into VIZ_DIR and returns the path.
     """
     try:
@@ -130,7 +131,11 @@ def visualize_last_7_days_df(df: pd.DataFrame, strategy_name: str, upto_ts: date
             upto_ts = df.index.max()
         elif upto_ts.tzinfo is None:
             upto_ts = upto_ts.replace(tzinfo=timezone.utc)
-        start_ts = upto_ts - timedelta(days=7)
+        
+        # Use VIZ_WINDOW_DAYS from config instead of hardcoded 7 days
+        import config
+        viz_days = config.VIZ_WINDOW_DAYS
+        start_ts = upto_ts - timedelta(days=viz_days)
         dff = df.loc[(df.index >= start_ts) & (df.index <= upto_ts)].copy()
         if dff.empty:
             return None
@@ -175,7 +180,7 @@ def visualize_last_7_days_df(df: pd.DataFrame, strategy_name: str, upto_ts: date
         fig.autofmt_xdate()
         ax3.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
         os.makedirs(config.VIZ_DIR, exist_ok=True)
-        out_path = os.path.join(config.VIZ_DIR, f"{strategy_name}_last7.png")
+        out_path = os.path.join(config.VIZ_DIR, f"{strategy_name}_last{viz_days}d.png")
         fig.savefig(out_path, dpi=200, bbox_inches='tight')
         plt.close(fig)
         return out_path

@@ -32,7 +32,10 @@ class StateStore:
         s = self._state.get('strategies', {}).get(strategy)
         if s and s.get('last_notified_ts'):
             try:
-                return datetime.fromisoformat(s['last_notified_ts'])
+                dt = datetime.fromisoformat(s['last_notified_ts'])
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
             except Exception:
                 return None
         return None
@@ -50,7 +53,10 @@ class StateStore:
         v = self._state.get('simulation_now')
         if v:
             try:
-                return datetime.fromisoformat(v)
+                dt = datetime.fromisoformat(v)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
             except Exception:
                 return None
         return None

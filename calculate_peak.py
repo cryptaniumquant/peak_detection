@@ -25,6 +25,8 @@ def process_df(df_in: pd.DataFrame, absolute_threshold: float | None = None) -> 
     if not isinstance(df.index, pd.DatetimeIndex):
         try:
             df.index = pd.to_datetime(df.index)
+            if df.index.tz is None:
+                df.index = df.index.tz_localize('UTC')
         except Exception:
             return None
     # Resample hourly, use max
@@ -52,9 +54,33 @@ def process_df(df_in: pd.DataFrame, absolute_threshold: float | None = None) -> 
     polyorder = 1
     QUANTILE_LEVEL = 0.01
     if len(series) >= window_length:
-        smoothed_pnl = savgol_filter(series, window_length=window_length, polyorder=polyorder)
-        derivative = np.gradient(smoothed_pnl)
-        second_derivative = np.gradient(derivative)
+        # Initialize output arrays
+        smoothed_pnl = np.full(len(series), np.nan)
+        derivative = np.full(len(series), np.nan)
+        second_derivative = np.full(len(series), np.nan)
+        
+        # Apply Savitzky-Golay filter point by point using only past data
+        # For each point i, use window [i-window_length+1 : i+1] (last 25 hours including current)
+        for i in range(window_length - 1, len(series)):
+            # Extract window of past data (including current point)
+            window_data = series.iloc[i - window_length + 1:i + 1].values
+            
+            # Apply Savitzky-Golay to this window
+            window_smoothed = savgol_filter(window_data, window_length=window_length, polyorder=polyorder)
+            
+            # Take the last (most recent) value from the smoothed window
+            smoothed_pnl[i] = window_smoothed[-1]
+        
+        # Calculate derivatives only where we have smoothed values
+        for i in range(window_length, len(series) - 1):
+            if not np.isnan(smoothed_pnl[i-1]) and not np.isnan(smoothed_pnl[i+1]):
+                derivative[i] = (smoothed_pnl[i+1] - smoothed_pnl[i-1]) / 2.0
+        
+        # Calculate second derivatives
+        for i in range(window_length + 1, len(series) - 2):
+            if not np.isnan(derivative[i-1]) and not np.isnan(derivative[i+1]):
+                second_derivative[i] = (derivative[i+1] - derivative[i-1]) / 2.0
+        
         df_out['smoothed_pnl'] = smoothed_pnl
         df_out['derivative'] = derivative
         df_out['second_derivative'] = second_derivative
@@ -64,22 +90,40 @@ def process_df(df_in: pd.DataFrame, absolute_threshold: float | None = None) -> 
             # Fill from the point we have derivatives defined
             quantile_threshold.iloc[window_length:] = float(absolute_threshold)
         else:
-            for i in range(window_length, len(series)):
-                lookback_window = second_derivative[max(0, i - 24):i + 1]
-                quantile_threshold.iloc[i] = np.quantile(lookback_window, QUANTILE_LEVEL)
-        for i in range(1, len(derivative) - 1):
-            is_peak = derivative[i - 1] > 0 and derivative[i + 1] < 0
-            lookback_hours = 24
-            start_lookback = max(0, i - lookback_hours)
-            is_below_quantile = False
-            for j in range(start_lookback, i + 1):
-                if second_derivative[j] < quantile_threshold.iloc[j]:
-                    is_below_quantile = True
-                    break
-            if is_peak and is_below_quantile:
-                peak_detected.iloc[i] = True
-                if i + 1 < len(rebalance_point):
-                    rebalance_point.iloc[i + 1] = True
+            for i in range(window_length + 1, len(series)):
+                if not np.isnan(second_derivative[i]):
+                    # Look back 24 hours using available second derivative data
+                    lookback_start = max(window_length + 1, i - 24)
+                    lookback_data = []
+                    for j in range(lookback_start, i + 1):
+                        if not np.isnan(second_derivative[j]):
+                            lookback_data.append(second_derivative[j])
+                    if len(lookback_data) > 0:
+                        quantile_threshold.iloc[i] = np.quantile(lookback_data, QUANTILE_LEVEL)
+        
+        # Peak detection using properly calculated derivatives
+        for i in range(window_length + 2, len(series) - 1):
+            if (not np.isnan(derivative[i-1]) and 
+                not np.isnan(derivative[i+1]) and
+                not np.isnan(second_derivative[i]) and
+                not np.isnan(quantile_threshold.iloc[i])):
+                
+                is_peak = derivative[i - 1] > 0 and derivative[i + 1] < 0
+                lookback_hours = 24
+                start_lookback = max(window_length + 1, i - lookback_hours)
+                is_below_quantile = False
+                
+                for j in range(start_lookback, i + 1):
+                    if (not np.isnan(second_derivative[j]) and 
+                        not np.isnan(quantile_threshold.iloc[j]) and
+                        second_derivative[j] < quantile_threshold.iloc[j]):
+                        is_below_quantile = True
+                        break
+                
+                if is_peak and is_below_quantile:
+                    peak_detected.iloc[i] = True
+                    if i + 1 < len(rebalance_point):
+                        rebalance_point.iloc[i + 1] = True
         df_out['quantile_threshold'] = quantile_threshold
     df_out['peak_detected'] = peak_detected
     df_out['rebalance_point'] = rebalance_point

@@ -70,6 +70,10 @@ VIZ_DIR = os.path.join(BASE_DIR, 'visualizations')
 STATE_DIR = os.path.join(BASE_DIR, 'bot_service', 'state')
 
 # Configuration files
+# Пока предлагаю систему в 3 уровня:
+# 1. Частое определение пиков с квантилем 100
+# 2. Среднее определение пиков с квантилем в 250
+# 3. Редкое определение пиков с квантилем в 500
 STRATEGY_THRESHOLDS_JSON = os.path.join(BASE_DIR, 'strategy_thresholds.json')
 STRATEGY_QUANTILE_CSV = os.path.join(BASE_DIR, 'strategy_quantile_values.csv')
 

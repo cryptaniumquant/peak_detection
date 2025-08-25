@@ -114,8 +114,19 @@ async def run_realtime_cycle_async(strategies: List[str], state: StateStore, det
             if last_notified is None and latest_signal_ts is not None:
                 state.set_last_notified(s, latest_signal_ts)
                 continue
-            is_rebalance_now = bool(dff.loc[latest_ts, 'rebalance_point'])
+            # Check if there's a valid rebalance signal at latest_ts
+            # Only trigger if we have valid derivative data (not NaN)
+            is_rebalance_now = False
+            if (latest_ts in dff.index and 
+                not pd.isna(dff.loc[latest_ts, 'derivative']) and
+                not pd.isna(dff.loc[latest_ts, 'second_derivative']) and
+                not pd.isna(dff.loc[latest_ts, 'quantile_threshold'])):
+                is_rebalance_now = bool(dff.loc[latest_ts, 'rebalance_point'])
+            
             if is_rebalance_now and ((last_notified is None) or (latest_ts > last_notified)):
+                # Use the actual latest signal timestamp, not latest_ts
+                actual_signal_ts = latest_signal_ts if latest_signal_ts is not None else latest_ts
+                
                 # Build visualization DF up to latest_ts (fetch only last viz_window_days)
                 viz_base = await process_strategy_df_hours_async(s, hours=24 * viz_window_days)
                 if viz_base is not None and not viz_base.empty and viz_base.index.tz is None:
@@ -124,7 +135,7 @@ async def run_realtime_cycle_async(strategies: List[str], state: StateStore, det
                     viz_base = viz_base.loc[(viz_base.index <= latest_ts)]
                 viz_df = calc_process_df(viz_base, absolute_threshold=abs_thr) if not viz_base.empty else None
                 if viz_df is not None and not viz_df.empty:
-                    events.append({'strategy': s, 'df': viz_df, 'last_signal_ts': latest_ts})
+                    events.append({'strategy': s, 'df': viz_df, 'last_signal_ts': actual_signal_ts})
         except Exception as e:
             logger.error(f"Realtime cycle error for {s}: {e}")
             continue
@@ -217,7 +228,12 @@ def run_simulation_cycle(strategies: List[str], state: StateStore, window_hours:
 def build_notification_payload(event: dict, upto_ts: Optional[datetime] = None) -> tuple[str, Optional[str]]:
     s = event['strategy']
     ts = event['last_signal_ts']
-    title = f"Rebalance signal: {s}\nTime: {ts.strftime('%Y-%m-%d %H:%M')}"
+    
+    # Check if we have a valid signal timestamp
+    if ts is None or pd.isna(ts):
+        title = f"Rebalance signal: {s}\nTime: No signals detected"
+    else:
+        title = f"Rebalance signal: {s}\nTime: {ts.strftime('%Y-%m-%d %H:%M')}"
     df = event.get('df')
     if df is not None:
         image_path = visualize_last_7_days_df(df, s, upto_ts=upto_ts or ts)

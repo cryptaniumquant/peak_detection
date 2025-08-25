@@ -232,9 +232,16 @@ async def cmd_all_viz(update: Update, context: ContextTypes.DEFAULT_TYPE):
             df = await build_viz_df_for_strategy_async(s, settings.viz_window_days)
             if df is None or df.empty:
                 continue
+            # Find the actual last signal timestamp, not just the last data point
+            rebalance_mask = df['rebalance_point'] == True
+            if rebalance_mask.any():
+                last_signal_ts = df.index[rebalance_mask].max()
+            else:
+                last_signal_ts = None
+            
             # Use upto_ts as last index to render right edge consistent
             upto_ts = df.index.max()
-            title, image_path = build_notification_payload({'strategy': s, 'df': df, 'last_signal_ts': upto_ts}, upto_ts=upto_ts)
+            title, image_path = build_notification_payload({'strategy': s, 'df': df, 'last_signal_ts': last_signal_ts}, upto_ts=upto_ts)
             if image_path:
                 await notifier.send_photo(image_path, caption=title)
             else:

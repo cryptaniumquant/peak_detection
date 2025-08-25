@@ -1,10 +1,10 @@
 import pandas as pd
 import numpy as np
 import logging
-from sqlalchemy import text
+from sqlalchemy import text, event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 import csv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import asyncio
 
@@ -31,12 +31,22 @@ logger = logging.getLogger(__name__)
 _async_engine = None
 _async_session_maker = None
 
+def set_time_zone(dbapi_connection, connection_record):
+    """Set MySQL session timezone to UTC"""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("SET time_zone = 'UTC';")
+    cursor.close()
+
 def get_async_engine():
     """Get or create async database engine"""
     global _async_engine, _async_session_maker
     if _async_engine is None:
         database_uri = get_async_database_uri()
         _async_engine = create_async_engine(database_uri, echo=False)
+        
+        # Set timezone to UTC for all connections
+        event.listen(_async_engine.sync_engine, "connect", set_time_zone)
+        
         _async_session_maker = async_sessionmaker(_async_engine, expire_on_commit=False, autoflush=False)
     return _async_engine, _async_session_maker
 
@@ -67,11 +77,11 @@ async def get_strategy_data_async(strategy_name, days=30):
     try:
         _, async_session_maker = get_async_engine()
         
-        # Calculate the start time (current time - days)
-        end_time = datetime.now()
+        # Calculate the start time (current time - days) in UTC
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(days=days)
         
-        # Format times for SQL query
+        # Format times for SQL query (already in UTC)
         start_time_str = start_time.strftime('%Y-%m-%d %H:%M:%S')
         end_time_str = end_time.strftime('%Y-%m-%d %H:%M:%S')
         
@@ -109,7 +119,7 @@ async def get_strategy_data_async(strategy_name, days=30):
         # Convert to DataFrame
         df_data = [{'strategy': row['analyst'], 'timestamp': row['res_time'], 'unrealized_pnl': row['virtual_unrealized_pnl']} for row in rows]
         df = pd.DataFrame(df_data)
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize('UTC')
         df.set_index('timestamp', inplace=True)
         
         logger.info(f"Retrieved {len(df)} non-zero records for strategy {strategy_name}")
@@ -145,11 +155,12 @@ def get_strategy_data(strategy_name, days=30):
         # No event loop, use asyncio.run
         return asyncio.run(get_strategy_data_async(strategy_name, days))
 
-def aggregate_to_hourly(df):
+def aggregate_to_hourly(df, strategy_name=None):
     """
     Aggregate minute data to hourly data by taking the maximum value for each hour
     Args:
         df: DataFrame with minute-level data
+        strategy_name: Name of the strategy for logging purposes
     Returns:
         DataFrame with hourly data
     """
@@ -167,7 +178,8 @@ def aggregate_to_hourly(df):
     
     # Check if we have enough consecutive hours of data
     if len(hourly_df) < 25:  # Need at least 25 hours for the Savitzky-Golay filter
-        logger.warning(f"Not enough hourly data points after filtering: {len(hourly_df)}")
+        strategy_info = f" for strategy {strategy_name}" if strategy_name else ""
+        logger.warning(f"Not enough hourly data points after filtering: {len(hourly_df)}{strategy_info}")
         return None
     
     # Find the longest continuous segment with at least 25 hours of data
@@ -190,12 +202,14 @@ def aggregate_to_hourly(df):
         continuous_segments.append(current_segment)
     
     if not continuous_segments:
-        logger.warning("No continuous segments with at least 25 hours of data found")
+        strategy_info = f" for strategy {strategy_name}" if strategy_name else ""
+        logger.warning(f"No continuous segments with at least 25 hours of data found{strategy_info}")
         return None
     
     # Find the longest segment
     longest_segment = max(continuous_segments, key=len)
-    logger.info(f"Found continuous segment with {len(longest_segment)} hours of data")
+    strategy_info = f" for strategy {strategy_name}" if strategy_name else ""
+    logger.info(f"Found continuous segment with {len(longest_segment)} hours of data{strategy_info}")
     
     # Extract the longest segment
     segment_indices = [timestamps[i] for i in longest_segment]
@@ -219,7 +233,7 @@ def process_strategy(strategy_name, output_dir, days=30):
         return None
     
     # Aggregate to hourly data
-    hourly_df = aggregate_to_hourly(df)
+    hourly_df = aggregate_to_hourly(df, strategy_name)
     if hourly_df is None:
         return None
     
@@ -239,7 +253,7 @@ async def process_strategy_df_async(strategy_name, days=30):
     df = await get_strategy_data_async(strategy_name, days)
     if df is None:
         return None
-    hourly_df = aggregate_to_hourly(df)
+    hourly_df = aggregate_to_hourly(df, strategy_name)
     return hourly_df
 
 def process_strategy_df(strategy_name, days=30):
@@ -263,7 +277,7 @@ async def get_strategy_data_hours_async(strategy_name: str, hours: int = 25):
     try:
         _, async_session_maker = get_async_engine()
         
-        end_time = datetime.now()
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours)
         start_time_str = start_time.strftime('%Y-%m-%d %H:%M:%S')
         end_time_str = end_time.strftime('%Y-%m-%d %H:%M:%S')
@@ -291,7 +305,7 @@ async def get_strategy_data_hours_async(strategy_name: str, hours: int = 25):
             
         df_data = [{'strategy': row['analyst'], 'timestamp': row['res_time'], 'unrealized_pnl': row['virtual_unrealized_pnl']} for row in rows]
         df = pd.DataFrame(df_data)
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize('UTC')
         df.set_index('timestamp', inplace=True)
         return df
         
@@ -318,7 +332,7 @@ async def process_strategy_df_hours_async(strategy_name: str, hours: int) -> pd.
     df = await get_strategy_data_hours_async(strategy_name, hours)
     if df is None:
         return None
-    return aggregate_to_hourly(df)
+    return aggregate_to_hourly(df, strategy_name)
 
 def process_strategy_df_hours(strategy_name: str, hours: int) -> pd.DataFrame | None:
     """In-memory: fetch last <hours>, aggregate hourly, return DF."""
