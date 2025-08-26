@@ -4,6 +4,7 @@ from telegram import Update, Bot
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import asyncio
+from asyncio import sleep
 import logging
 from functools import wraps
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -247,6 +248,8 @@ async def cmd_all_viz(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await notifier.send_text(title)
             sent += 1
+            # Add delay to prevent Telegram flood control errors
+            await sleep(3)
         except Exception as e:
             await notifier.send_text(f"Failed to visualize {s}: {e}")
             continue
