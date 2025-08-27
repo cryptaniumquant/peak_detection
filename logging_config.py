@@ -20,7 +20,11 @@ class TelegramErrorHandler(logging.Handler):
         
     def emit(self, record):
         """Send log record to Telegram if it's ERROR level or higher"""
-        try:
+        try:            
+            # Skip network-related errors from being sent to Telegram
+            if self._is_network_error(record):
+                return
+                
             if not self.bot:
                 self.bot = Bot(token=self.bot_token)
             
@@ -34,7 +38,29 @@ class TelegramErrorHandler(logging.Handler):
         except Exception:
             # Don't let logging errors break the application
             pass
-    
+    def _is_network_error(self, record):
+        """Check if the log record is a network-related error that should not be sent to Telegram"""
+        error_message = record.getMessage().lower()
+        network_error_keywords = [
+            'httpx.readerror',
+            'httpx.connecterror',
+            'httpx.timeouterror',
+            'error while getting updates',
+            'network error',
+            'connection error',
+            'timeout error',
+            'read timeout',
+            'connect timeout',
+            'pool timeout'
+        ]
+        
+        # Check if this is from telegram.ext.Updater (the polling mechanism)
+        if record.name == 'telegram.ext.Updater':
+            return True
+            
+        # Check for network error keywords in the message
+        return any(keyword in error_message for keyword in network_error_keywords)
+        
     async def _send_to_telegram(self, message: str):
         """Send message to Telegram asynchronously"""
         try:
