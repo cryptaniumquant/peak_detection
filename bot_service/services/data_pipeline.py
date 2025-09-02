@@ -43,7 +43,9 @@ async def build_viz_df_for_strategy_async(strategy: str, viz_window_days: int = 
             base_df.index = pd.to_datetime(base_df.index)
         if base_df.index.tz is None:
             base_df.index = base_df.index.tz_localize('UTC')
-        thresholds = config.load_strategy_thresholds()
+        if not hasattr(config, '_cached_thresholds'):
+            config._cached_thresholds = config.load_strategy_thresholds()
+        thresholds = config._cached_thresholds
         abs_thr = thresholds.get(strategy)
         out_df = calc_process_df(base_df, absolute_threshold=abs_thr)
         if out_df is None or out_df.empty:
@@ -82,7 +84,9 @@ async def run_realtime_cycle_async(strategies: List[str], state: StateStore, det
     Returns list of events: {strategy, joined_path, last_signal_ts}
     """
     events: list[dict] = []
-    thresholds = config.load_strategy_thresholds()
+    if not hasattr(config, '_cached_thresholds'):
+        config._cached_thresholds = config.load_strategy_thresholds()
+    thresholds = config._cached_thresholds
     for s in strategies:
         try:
             # In-memory processing: fetch only last <detect_hours> for detection
@@ -173,7 +177,9 @@ async def run_simulation_cycle_async(strategies: List[str], state: StateStore, w
     new_now = now + timedelta(hours=step_hours)
 
     events: list[dict] = []
-    thresholds = config.load_strategy_thresholds()
+    if not hasattr(config, '_cached_thresholds'):
+        config._cached_thresholds = config.load_strategy_thresholds()
+    thresholds = config._cached_thresholds
     for s in strategies:
         try:
             hourly_df = await process_strategy_df_async(s, days=max(30, window_hours // 24 + 2))
@@ -252,7 +258,9 @@ async def run_simulation_at_async(strategy: str, at_dt: datetime, window_hours: 
     Returns: {strategy, joined_path, last_signal_ts} or None.
     """
     try:
-        thresholds = config.load_strategy_thresholds()
+        if not hasattr(config, '_cached_thresholds'):
+            config._cached_thresholds = config.load_strategy_thresholds()
+        thresholds = config._cached_thresholds
         abs_thr = thresholds.get(strategy)
         
         hourly_df = await process_strategy_df_async(strategy, days=max(30, window_hours // 24 + 2))
