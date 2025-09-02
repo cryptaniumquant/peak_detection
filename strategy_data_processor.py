@@ -177,12 +177,12 @@ def aggregate_to_hourly(df, strategy_name=None):
     hourly_df = hourly_df.dropna()
     
     # Check if we have enough consecutive hours of data
-    if len(hourly_df) < 25:  # Need at least 25 hours for the Savitzky-Golay filter
+    if len(hourly_df) < 27:  # Need at least 27 hours for second derivative calculation
         strategy_info = f" for strategy {strategy_name}" if strategy_name else ""
         logger.warning(f"Not enough hourly data points after filtering: {len(hourly_df)}{strategy_info}")
         return None
     
-    # Find the longest continuous segment with at least 25 hours of data
+    # Find the longest continuous segment with at least 27 hours of data
     continuous_segments = []
     current_segment = []
     
@@ -193,27 +193,57 @@ def aggregate_to_hourly(df, strategy_name=None):
         if i == 0 or (timestamps[i] - timestamps[i-1]).total_seconds() == 3600:  # 1 hour difference
             current_segment.append(i)
         else:
-            if len(current_segment) >= 25:  # Only keep segments with at least 25 hours
+            if len(current_segment) >= 27:  # Only keep segments with at least 27 hours
                 continuous_segments.append(current_segment)
             current_segment = [i]
     
     # Add the last segment if it's long enough
-    if len(current_segment) >= 25:
+    if len(current_segment) >= 27:
         continuous_segments.append(current_segment)
     
     if not continuous_segments:
         strategy_info = f" for strategy {strategy_name}" if strategy_name else ""
-        logger.warning(f"No continuous segments with at least 25 hours of data found{strategy_info}")
+        logger.warning(f"No continuous segments with at least 27 hours of data found{strategy_info}")
         return None
     
     # Find the longest segment
     longest_segment = max(continuous_segments, key=len)
     strategy_info = f" for strategy {strategy_name}" if strategy_name else ""
-    logger.info(f"Found continuous segment with {len(longest_segment)} hours of data{strategy_info}")
     
     # Extract the longest segment
     segment_indices = [timestamps[i] for i in longest_segment]
     filtered_df = hourly_df.loc[segment_indices]
+    
+    # Calculate peak detection to get second derivative for logging
+    from calculate_peak import process_df
+    
+    # Use global cached thresholds if available, otherwise load them
+    import config
+    if not hasattr(config, '_cached_thresholds'):
+        config._cached_thresholds = config.load_strategy_thresholds()
+    
+    abs_thr = config._cached_thresholds.get(strategy_name) if strategy_name else None
+    if abs_thr is None:
+        abs_thr = -100.0  # Default threshold
+    
+    peak_df = process_df(filtered_df, absolute_threshold=abs_thr)
+    if peak_df is not None and 'second_derivative' in peak_df.columns:
+        # Debug: check the actual data structure
+        total_points = len(peak_df)
+        smoothed_count = peak_df['smoothed_pnl'].notna().sum() if 'smoothed_pnl' in peak_df.columns else 0
+        derivative_count = peak_df['derivative'].notna().sum() if 'derivative' in peak_df.columns else 0
+        second_deriv_count = peak_df['second_derivative'].notna().sum()
+        
+        # Find the last non-NaN second derivative value
+        non_nan_derivatives = peak_df['second_derivative'].dropna()
+        if len(non_nan_derivatives) > 0:
+            latest_second_deriv = non_nan_derivatives.iloc[-1]
+            latest_index = non_nan_derivatives.index[-1]
+            logger.info(f"Found continuous segment with {len(longest_segment)} hours of data{strategy_info}, latest second_derivative: {latest_second_deriv:.6f} (at {latest_index})")
+        else:
+            logger.info(f"Found continuous segment with {len(longest_segment)} hours of data{strategy_info}, latest second_derivative: all NaN (total:{total_points}, smoothed:{smoothed_count}, deriv:{derivative_count}, 2nd_deriv:{second_deriv_count})")
+    else:
+        logger.info(f"Found continuous segment with {len(longest_segment)} hours of data{strategy_info}")
     
     return filtered_df
 
@@ -272,7 +302,7 @@ def process_strategy_df(strategy_name, days=30):
     except RuntimeError:
         return asyncio.run(process_strategy_df_async(strategy_name, days))
 
-async def get_strategy_data_hours_async(strategy_name: str, hours: int = 25):
+async def get_strategy_data_hours_async(strategy_name: str, hours: int = 27):
     """Get data for a specific strategy limited by hours lookback (async version)."""
     try:
         _, async_session_maker = get_async_engine()
@@ -313,7 +343,7 @@ async def get_strategy_data_hours_async(strategy_name: str, hours: int = 25):
         logger.error(f"Error retrieving last {hours}h for {strategy_name}: {e}")
         return None
 
-def get_strategy_data_hours(strategy_name: str, hours: int = 25):
+def get_strategy_data_hours(strategy_name: str, hours: int = 27):
     """Get data for a specific strategy limited by hours lookback (sync wrapper)."""
     try:
         loop = asyncio.get_event_loop()
