@@ -84,22 +84,14 @@ def process_df(df_in: pd.DataFrame, absolute_threshold: float | None = None) -> 
         df_out['smoothed_pnl'] = smoothed_pnl
         df_out['derivative'] = derivative
         df_out['second_derivative'] = second_derivative
-        # Build threshold series: absolute value if provided, else rolling quantile
+        # Build threshold series: absolute value if provided, else default -100
         quantile_threshold = pd.Series(np.nan, index=series.index)
         if absolute_threshold is not None:
             # Fill from the point we have derivatives defined
             quantile_threshold.iloc[window_length:] = float(absolute_threshold)
         else:
-            for i in range(window_length + 1, len(series)):
-                if not np.isnan(second_derivative[i]):
-                    # Look back 24 hours using available second derivative data
-                    lookback_start = max(window_length + 1, i - 24)
-                    lookback_data = []
-                    for j in range(lookback_start, i + 1):
-                        if not np.isnan(second_derivative[j]):
-                            lookback_data.append(second_derivative[j])
-                    if len(lookback_data) > 0:
-                        quantile_threshold.iloc[i] = np.quantile(lookback_data, QUANTILE_LEVEL)
+            # Use default threshold of -100 if no absolute threshold provided
+            quantile_threshold.iloc[window_length:] = -100.0
         
         # Peak detection using properly calculated derivatives
         for i in range(window_length + 2, len(series) - 1):
@@ -193,23 +185,36 @@ def process_file(filepath, output_dir):
     # Параметры для фильтра Савицкого-Голея
     window_length = 25  # Должно быть нечетным числом 
     polyorder = 1  # Порядок полинома
-    
-    # Параметры для расчета квантиля второй производной
-    QUANTILE_LEVEL = 0.01  # 5% квантиль для выявления значимых изменений
-    
+
     # Применяем фильтр Савицкого-Голея непосредственно к PnL (backtest_Value)
     # Проверяем, достаточно ли данных для применения фильтра
     if len(series) >= window_length:
-        # Применяем фильтр Савицкого-Голея для сглаживания PnL
-        smoothed_pnl = savgol_filter(series, window_length=window_length, polyorder=polyorder)
+        # Initialize output arrays
+        smoothed_pnl = np.full(len(series), np.nan)
+        derivative = np.full(len(series), np.nan)
+        second_derivative = np.full(len(series), np.nan)
         
-        # Рассчитываем первую производную (скорость изменения PnL)
-        # Положительная производная означает рост PnL, отрицательная - падение
-        derivative = np.gradient(smoothed_pnl)
+        # Apply Savitzky-Golay filter point by point using only past data
+        # For each point i, use window [i-window_length+1 : i+1] (last 25 hours including current)
+        for i in range(window_length - 1, len(series)):
+            # Extract window of past data (including current point)
+            window_data = series.iloc[i - window_length + 1:i + 1].values
+            
+            # Apply Savitzky-Golay to this window
+            window_smoothed = savgol_filter(window_data, window_length=window_length, polyorder=polyorder)
+            
+            # Take the last (most recent) value from the smoothed window
+            smoothed_pnl[i] = window_smoothed[-1]
         
-        # Рассчитываем вторую производную (ускорение/замедление роста PnL)
-        # Отрицательная вторая производная означает замедление роста или ускорение падения
-        second_derivative = np.gradient(derivative)
+        # Calculate derivatives only where we have smoothed values
+        for i in range(window_length, len(series) - 1):
+            if not np.isnan(smoothed_pnl[i-1]) and not np.isnan(smoothed_pnl[i+1]):
+                derivative[i] = (smoothed_pnl[i+1] - smoothed_pnl[i-1]) / 2.0
+        
+        # Calculate second derivatives
+        for i in range(window_length + 1, len(series) - 2):
+            if not np.isnan(derivative[i-1]) and not np.isnan(derivative[i+1]):
+                second_derivative[i] = (derivative[i+1] - derivative[i-1]) / 2.0
         
         # Добавляем отладочную информацию
         df_out['smoothed_pnl'] = smoothed_pnl
@@ -219,47 +224,37 @@ def process_file(filepath, output_dir):
         # Создаем серию для хранения порога квантиля
         quantile_threshold = pd.Series(np.nan, index=series.index)
         
-        # Рассчитываем глобальный порог квантиля для второй производной
-        # Используем только отрицательные значения второй производной
-        second_derivative_series = pd.Series(second_derivative, index=series.index)
-        
-        # Получаем все отрицательные значения второй производной
-        neg_values = second_derivative_series[second_derivative_series < 0]
-        
-        # Рассчитываем квантиль на всем периоде
-        if len(neg_values) > 0:
-            global_threshold = neg_values.quantile(QUANTILE_LEVEL)
-            # Заполняем все значения одним и тем же порогом
-            quantile_threshold.iloc[:] = global_threshold
+        # Build threshold series: absolute value if provided, else default -100
+        if absolute_threshold is not None:
+            # Fill from the point we have derivatives defined
+            quantile_threshold.iloc[window_length:] = float(absolute_threshold)
         else:
-            # Если нет отрицательных значений, используем очень низкое значение
-            quantile_threshold.iloc[:] = -np.inf
+            # Use default threshold of -100 if no absolute threshold provided
+            quantile_threshold.iloc[window_length:] = -100.0
         
-        # Находим пики, где:
-        # 1. Первая производная меняет знак с положительной на отрицательную (точка разворота тренда)
-        # 2. Вторая производная была ниже глобального квантиля в последние 24 часа
-        for i in range(1, len(derivative)-1):
-            
-            # Проверка смены знака первой производной (с + на -)
-            # Это означает, что PnL перестал расти и начал падать
-            is_peak = derivative[i-1] > 0 and derivative[i+1] < 0
-            
-            # Проверка, что вторая производная была ниже порогового квантиля в последние 24 часа
-            # Это означает значительное замедление роста или ускорение падения в недавнем прошлом
-            # Проверяем последние 24 часа (24 точки при часовом таймфрейме)
-            lookback_hours = 24
-            start_lookback = max(0, i - lookback_hours)
-            # Проверяем, была ли вторая производная ниже порога в любой точке за последние 24 часа
-            is_below_quantile = False
-            for j in range(start_lookback, i + 1):
-                if second_derivative[j] < quantile_threshold.iloc[j]:
-                    is_below_quantile = True
-                    break
-            
-            # Генерируем сигнал пика, если все условия выполнены
-            if is_peak and is_below_quantile:
-                peak_detected.iloc[i] = True
-                rebalance_point.iloc[i+1] = True  # точка, где мы заметили пик
+        # Peak detection using properly calculated derivatives
+        for i in range(window_length + 2, len(series) - 1):
+            if (not np.isnan(derivative[i-1]) and 
+                not np.isnan(derivative[i+1]) and
+                not np.isnan(second_derivative[i]) and
+                not np.isnan(quantile_threshold.iloc[i])):
+                
+                is_peak = derivative[i - 1] > 0 and derivative[i + 1] < 0
+                lookback_hours = 24
+                start_lookback = max(window_length + 1, i - lookback_hours)
+                is_below_quantile = False
+                
+                for j in range(start_lookback, i + 1):
+                    if (not np.isnan(second_derivative[j]) and 
+                        not np.isnan(quantile_threshold.iloc[j]) and
+                        second_derivative[j] < quantile_threshold.iloc[j]):
+                        is_below_quantile = True
+                        break
+                
+                if is_peak and is_below_quantile:
+                    peak_detected.iloc[i] = True
+                    if i + 1 < len(rebalance_point):
+                        rebalance_point.iloc[i + 1] = True
         
         # Сохраняем пороговый квантиль для визуализации
         df_out['quantile_threshold'] = quantile_threshold
