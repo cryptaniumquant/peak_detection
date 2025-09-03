@@ -50,21 +50,6 @@ def get_async_engine():
         _async_session_maker = async_sessionmaker(_async_engine, expire_on_commit=False, autoflush=False)
     return _async_engine, _async_session_maker
 
-
-def get_csv_strategies(csv_path):
-    """Get strategy names from CSV file"""
-    strategies = []
-    try:
-        with open(csv_path, 'r') as f:
-            csv_reader = csv.DictReader(f)
-            for row in csv_reader:
-                strategies.append(row['strategy'])
-        logger.info(f"Found {len(strategies)} strategies in CSV file")
-        return strategies
-    except Exception as e:
-        logger.error(f"Error reading CSV file: {e}")
-        return None
-
 async def get_strategy_data_async(strategy_name, days=30):
     """
     Get data for a specific strategy from the database (async version)
@@ -220,6 +205,7 @@ def aggregate_to_hourly(df, strategy_name=None):
     # Use global cached thresholds if available, otherwise load them
     import config
     if not hasattr(config, '_cached_thresholds'):
+        # Since this is called from sync context, use sync version but it will skip DB query
         config._cached_thresholds = config.load_strategy_thresholds()
     
     abs_thr = config._cached_thresholds.get(strategy_name) if strategy_name else None
@@ -378,16 +364,14 @@ def process_strategy_df_hours(strategy_name: str, hours: int) -> pd.DataFrame | 
     except RuntimeError:
         return asyncio.run(process_strategy_df_hours_async(strategy_name, hours))
 
-def process_all_strategies(csv_path, output_dir):
+def process_all_strategies(strategies_list, output_dir):
     """
-    Process all strategies from the CSV file
+    Process all strategies from the provided list
     Args:
-        csv_path: Path to the CSV file with strategy names
+        strategies_list: List of strategy names
         output_dir: Directory to save the output files
     """
-    # Get strategy names from CSV
-    strategies = get_csv_strategies(csv_path)
-    if not strategies:
+    if not strategies_list:
         return
     
     # Create output directory if it doesn't exist
@@ -395,7 +379,7 @@ def process_all_strategies(csv_path, output_dir):
     
     # Process each strategy
     processed_files = []
-    for strategy in strategies:
+    for strategy in strategies_list:
         output_file = process_strategy(strategy, output_dir)
         if output_file:
             processed_files.append(output_file)

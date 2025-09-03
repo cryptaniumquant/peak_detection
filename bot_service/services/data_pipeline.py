@@ -11,19 +11,48 @@ from .state_store import StateStore
 from .visualization_service import visualize_last_7_days, visualize_last_7_days_df
 
 # Import existing processors (in-memory versions)
-from strategy_data_processor import process_strategy_df_hours_async, process_strategy_df_async, process_strategy_df, process_strategy_df_hours, get_csv_strategies
+from strategy_data_processor import process_strategy_df_hours_async, process_strategy_df_async, process_strategy_df, process_strategy_df_hours
 from calculate_peak import process_file as calc_process_file, process_df as calc_process_df
 
 logger = logging.getLogger(__name__)
-CSV_STRATEGY_PATH = os.path.join(config.BASE_DIR, 'strategy_quantile_values.csv')
 
 
-def list_strategies(whitelist: List[str] | None) -> List[str]:
+async def list_strategies_async(whitelist: List[str] | None) -> List[str]:
+    """Get list of strategies from database analysts or whitelist (async version)"""
     if whitelist:
         return whitelist
     try:
-        strategies = get_csv_strategies(CSV_STRATEGY_PATH) or []
-        return strategies
+        # Get analysts from database
+        analysts = await config.get_analysts_from_database()
+        if analysts:
+            logger.info(f"Found {len(analysts)} strategies from database")
+            return analysts
+        else:
+            logger.error("No analysts found in database")
+            return []
+    except Exception as e:
+        logger.error(f"Failed to read strategies from database: {e}")
+        return []
+
+def list_strategies(whitelist: List[str] | None) -> List[str]:
+    """Get list of strategies from database analysts or whitelist (sync wrapper)"""
+    if whitelist:
+        return whitelist
+    try:
+        # Check if we're in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # If we're in a loop, we can't run async code synchronously
+            logger.error("Cannot run sync list_strategies in event loop context. Use list_strategies_async instead.")
+            return []
+        except RuntimeError:
+            # No running loop, we can create one
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            strategies = loop.run_until_complete(list_strategies_async(whitelist))
+            loop.close()
+            return strategies
     except Exception as e:
         logger.error(f"Failed to read strategies: {e}")
         return []
@@ -43,8 +72,8 @@ async def build_viz_df_for_strategy_async(strategy: str, viz_window_days: int = 
             base_df.index = pd.to_datetime(base_df.index)
         if base_df.index.tz is None:
             base_df.index = base_df.index.tz_localize('UTC')
-        if not hasattr(config, '_cached_thresholds'):
-            config._cached_thresholds = config.load_strategy_thresholds()
+        # Always reload thresholds in async context to ensure DB query is executed
+        config._cached_thresholds = await config.load_strategy_thresholds_async()
         thresholds = config._cached_thresholds
         abs_thr = thresholds.get(strategy)
         out_df = calc_process_df(base_df, absolute_threshold=abs_thr)
@@ -84,8 +113,8 @@ async def run_realtime_cycle_async(strategies: List[str], state: StateStore, det
     Returns list of events: {strategy, joined_path, last_signal_ts}
     """
     events: list[dict] = []
-    if not hasattr(config, '_cached_thresholds'):
-        config._cached_thresholds = config.load_strategy_thresholds()
+    # Always reload thresholds in async context to ensure DB query is executed
+    config._cached_thresholds = await config.load_strategy_thresholds_async()
     thresholds = config._cached_thresholds
     for s in strategies:
         try:
@@ -177,8 +206,8 @@ async def run_simulation_cycle_async(strategies: List[str], state: StateStore, w
     new_now = now + timedelta(hours=step_hours)
 
     events: list[dict] = []
-    if not hasattr(config, '_cached_thresholds'):
-        config._cached_thresholds = config.load_strategy_thresholds()
+    # Always reload thresholds in async context to ensure DB query is executed
+    config._cached_thresholds = await config.load_strategy_thresholds_async()
     thresholds = config._cached_thresholds
     for s in strategies:
         try:
@@ -258,8 +287,8 @@ async def run_simulation_at_async(strategy: str, at_dt: datetime, window_hours: 
     Returns: {strategy, joined_path, last_signal_ts} or None.
     """
     try:
-        if not hasattr(config, '_cached_thresholds'):
-            config._cached_thresholds = config.load_strategy_thresholds()
+        # Always reload thresholds in async context to ensure DB query is executed
+        config._cached_thresholds = await config.load_strategy_thresholds_async()
         thresholds = config._cached_thresholds
         abs_thr = thresholds.get(strategy)
         

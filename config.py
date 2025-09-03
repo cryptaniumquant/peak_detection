@@ -7,8 +7,13 @@ import os
 import os
 import json
 import logging
+import csv
+import asyncio
 from dataclasses import dataclass
 from typing import List, Dict
+import sqlalchemy as sa
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +40,7 @@ MODE = 'real'  # 'real' or 'simulate'
 STRATEGY_WHITELIST = []  # Empty list means all strategies
 
 # Time windows
-REAL_DETECT_HOURS = 28  # Hours of data to fetch for signal detection
+REAL_DETECT_HOURS = 29  # Hours of data to fetch for signal detection
 VIZ_WINDOW_DAYS = 7     # Days of data for visualization
 
 # Scheduling (APScheduler cron-based)
@@ -57,6 +62,9 @@ LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 # Simulation parameters
 SIM_WINDOW_HOURS = 168  # 7 days
 SIM_STEP_HOURS = 1
+
+# Default threshold for analysts from database
+DEFAULT_ABSOLUTE_THRESHOLD = -100.0
 
 # =============================================================================
 # FILE PATHS
@@ -97,40 +105,137 @@ class Settings:
 # =============================================================================
 # CONFIGURATION LOADERS
 # =============================================================================
-def load_strategy_thresholds() -> Dict[str, float]:
+async def get_analysts_from_database() -> List[str]:
     """
-    Load per-strategy absolute thresholds from JSON file.
-    Falls back to CSV if JSON is not found.
+    Query database to get all enabled analyst codes from management table.
     """
-    # Try JSON first
+    try:
+        db_uri = get_async_database_uri()
+        engine = create_async_engine(db_uri)
+        async_session = sessionmaker(engine, class_=AsyncSession)
+        
+        async with async_session() as session:
+            query = sa.text("""
+                select a.code as analyst 
+                from analyst a
+                where a.state = 'enabled'
+                and exists (select 'x' from management m where m.analyst=a.code and m.state='enabled')
+            """)
+            result = await session.execute(query)
+            analysts = [row.analyst for row in result.fetchall()]
+            logger.info(f"Found {len(analysts)} enabled analysts from database")
+            return analysts
+    except Exception as e:
+        logger.error(f"Error querying analysts from database: {e}")
+        return []
+
+async def load_strategy_thresholds_async() -> Dict[str, float]:
+    """
+    Async version of load_strategy_thresholds for use within existing event loops.
+    """
+    thresholds = {}
+    
+    # Step 1: Get analysts from database and set default threshold
+    try:
+        analysts = await get_analysts_from_database()
+        # Set default threshold for all analysts
+        for analyst in analysts:
+            thresholds[analyst] = DEFAULT_ABSOLUTE_THRESHOLD
+        logger.info(f"Set default threshold {DEFAULT_ABSOLUTE_THRESHOLD} for {len(analysts)} analysts")
+    except Exception as e:
+        logger.error(f"Error loading analysts from database: {e}")
+    
+    # Step 2: Override with JSON values if file exists
     if os.path.exists(STRATEGY_THRESHOLDS_JSON):
         try:
             with open(STRATEGY_THRESHOLDS_JSON, 'r') as f:
-                thresholds = json.load(f)
-                logger.info(f"Loaded {len(thresholds)} strategy thresholds from JSON")
-                return thresholds
+                json_thresholds = json.load(f)
+                for strategy, threshold in json_thresholds.items():
+                    thresholds[strategy] = threshold
+                logger.info(f"Applied {len(json_thresholds)} overrides from JSON file")
         except Exception as e:
             logger.error(f"Error loading strategy thresholds from JSON: {e}")
     
-    # Fallback to CSV
+    # Step 3: Override with CSV values if file exists
     if os.path.exists(STRATEGY_QUANTILE_CSV):
         try:
-            thresholds = {}
             with open(STRATEGY_QUANTILE_CSV, 'r') as f:
                 reader = csv.DictReader(f)
+                csv_count = 0
                 for row in reader:
                     strategy = row.get('strategy')
                     # Use quantile_value (negative) as absolute threshold
                     threshold = float(row.get('quantile_value', 0))
                     if strategy:
                         thresholds[strategy] = threshold
-            logger.info(f"Loaded {len(thresholds)} strategy thresholds from CSV fallback")
-            return thresholds
+                        csv_count += 1
+                logger.info(f"Applied {csv_count} overrides from CSV file")
         except Exception as e:
             logger.error(f"Error loading strategy thresholds from CSV: {e}")
     
-    logger.warning("No strategy thresholds found, using dynamic quantiles")
-    return {}
+    logger.info(f"Final threshold configuration: {len(thresholds)} strategies")
+    return thresholds
+
+def load_strategy_thresholds() -> Dict[str, float]:
+    """
+    Load per-strategy absolute thresholds with new logic:
+    1. Query database for all enabled analysts and set them to DEFAULT_ABSOLUTE_THRESHOLD
+    2. Override with values from JSON file if they exist
+    3. Override with values from CSV file if they exist
+    """
+    thresholds = {}
+    
+    # Step 1: Try to get analysts from database
+    try:
+        # Check if we're already in an event loop
+        try:
+            loop = asyncio.get_running_loop()
+            # If we're in a loop, we can't run async code synchronously
+            logger.warning("Already in event loop, skipping database query for analysts")
+        except RuntimeError:
+            # No running loop, we can create one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            analysts = loop.run_until_complete(get_analysts_from_database())
+            loop.close()
+            
+            # Set default threshold for all analysts
+            for analyst in analysts:
+                thresholds[analyst] = DEFAULT_ABSOLUTE_THRESHOLD
+            logger.info(f"Set default threshold {DEFAULT_ABSOLUTE_THRESHOLD} for {len(analysts)} analysts")
+    except Exception as e:
+        logger.error(f"Error loading analysts from database: {e}")
+    
+    # Step 2: Override with JSON values if file exists
+    if os.path.exists(STRATEGY_THRESHOLDS_JSON):
+        try:
+            with open(STRATEGY_THRESHOLDS_JSON, 'r') as f:
+                json_thresholds = json.load(f)
+                for strategy, threshold in json_thresholds.items():
+                    thresholds[strategy] = threshold
+                logger.info(f"Applied {len(json_thresholds)} overrides from JSON file")
+        except Exception as e:
+            logger.error(f"Error loading strategy thresholds from JSON: {e}")
+    
+    # Step 3: Override with CSV values if file exists
+    if os.path.exists(STRATEGY_QUANTILE_CSV):
+        try:
+            with open(STRATEGY_QUANTILE_CSV, 'r') as f:
+                reader = csv.DictReader(f)
+                csv_count = 0
+                for row in reader:
+                    strategy = row.get('strategy')
+                    # Use quantile_value (negative) as absolute threshold
+                    threshold = float(row.get('quantile_value', 0))
+                    if strategy:
+                        thresholds[strategy] = threshold
+                        csv_count += 1
+                logger.info(f"Applied {csv_count} overrides from CSV file")
+        except Exception as e:
+            logger.error(f"Error loading strategy thresholds from CSV: {e}")
+    
+    logger.info(f"Final threshold configuration: {len(thresholds)} strategies")
+    return thresholds
 
 def load_settings() -> Settings:
     """Load all settings, combining defaults with local_settings overrides"""

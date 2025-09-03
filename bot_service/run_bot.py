@@ -15,6 +15,7 @@ from .services.notifier import Notifier
 from .services.state_store import StateStore
 from .services.data_pipeline import (
     list_strategies,
+    list_strategies_async,
     run_realtime_cycle,
     run_realtime_cycle_async,
     run_simulation_cycle_async,
@@ -47,7 +48,7 @@ async def run_cycle(context: ContextTypes.DEFAULT_TYPE, announce_no_signals: boo
     notifier: Notifier = context.application.bot_data['notifier']
     state: StateStore = context.application.bot_data['state']
 
-    strategies = list_strategies(settings.strategy_whitelist)
+    strategies = await list_strategies_async(settings.strategy_whitelist)
     if not strategies:
         await notifier.send_text("No strategies to process.")
         return 0
@@ -104,7 +105,7 @@ async def scheduled_run_cycle():
         notifier = _app_data['notifier']
         state = _app_data['state']
         
-        strategies = list_strategies(settings.strategy_whitelist)
+        strategies = await list_strategies_async(settings.strategy_whitelist)
         if not strategies:
             await notifier.send_text("No strategies to process.")
             return
@@ -222,7 +223,7 @@ async def cmd_all_viz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if settings.mode != 'real':
         await update.message.reply_text("This command works in real mode only. Set MODE=real in .env and restart bot.")
         return
-    strategies = list_strategies(settings.strategy_whitelist)
+    strategies = await list_strategies_async(settings.strategy_whitelist)
     if not strategies:
         await notifier.send_text("No strategies to visualize.")
         return
