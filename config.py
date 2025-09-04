@@ -118,7 +118,7 @@ async def get_analysts_from_database() -> List[str]:
             query = sa.text("""
                 select a.code as analyst 
                 from analyst a
-                where a.state = 'enabled'
+                where a.state = 'enabled' and a.typ='plan'
                 and exists (select 'x' from management m where m.analyst=a.code and m.state='enabled')
             """)
             result = await session.execute(query)
