@@ -40,7 +40,7 @@ MODE = 'real'  # 'real' or 'simulate'
 STRATEGY_WHITELIST = []  # Empty list means all strategies
 
 # Time windows
-REAL_DETECT_HOURS = 27  # Hours of data to fetch for signal detection
+REAL_DETECT_HOURS = 28  # Hours of data to fetch for signal detection
 VIZ_WINDOW_DAYS = 7     # Days of data for visualization
 
 # Scheduling (APScheduler cron-based)
