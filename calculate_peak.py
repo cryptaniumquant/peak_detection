@@ -71,15 +71,35 @@ def process_df(df_in: pd.DataFrame, absolute_threshold: float | None = None) -> 
             # Take the last (most recent) value from the smoothed window
             smoothed_pnl[i] = window_smoothed[-1]
         
-        # Calculate derivatives only where we have smoothed values
-        for i in range(window_length, len(series) - 1):
-            if not np.isnan(smoothed_pnl[i-1]) and not np.isnan(smoothed_pnl[i+1]):
-                derivative[i] = (smoothed_pnl[i+1] - smoothed_pnl[i-1]) / 2.0
+        # Calculate derivatives using central difference where possible, forward/backward at edges
+        for i in range(window_length, len(series)):
+            if i == window_length:
+                # Forward difference for first point
+                if not np.isnan(smoothed_pnl[i]) and not np.isnan(smoothed_pnl[i+1]):
+                    derivative[i] = smoothed_pnl[i+1] - smoothed_pnl[i]
+            elif i == len(series) - 1:
+                # Backward difference for last point
+                if not np.isnan(smoothed_pnl[i-1]) and not np.isnan(smoothed_pnl[i]):
+                    derivative[i] = smoothed_pnl[i] - smoothed_pnl[i-1]
+            else:
+                # Central difference for middle points
+                if not np.isnan(smoothed_pnl[i-1]) and not np.isnan(smoothed_pnl[i+1]):
+                    derivative[i] = (smoothed_pnl[i+1] - smoothed_pnl[i-1]) / 2.0
         
-        # Calculate second derivatives
-        for i in range(window_length + 1, len(series) - 2):
-            if not np.isnan(derivative[i-1]) and not np.isnan(derivative[i+1]):
-                second_derivative[i] = (derivative[i+1] - derivative[i-1]) / 2.0
+        # Calculate second derivatives using central difference where possible, forward/backward at edges
+        for i in range(window_length + 1, len(series)):
+            if i == window_length + 1:
+                # Forward difference for first point
+                if not np.isnan(derivative[i]) and not np.isnan(derivative[i+1]):
+                    second_derivative[i] = derivative[i+1] - derivative[i]
+            elif i == len(series) - 1:
+                # Backward difference for last point
+                if not np.isnan(derivative[i-1]) and not np.isnan(derivative[i]):
+                    second_derivative[i] = derivative[i] - derivative[i-1]
+            else:
+                # Central difference for middle points
+                if not np.isnan(derivative[i-1]) and not np.isnan(derivative[i+1]):
+                    second_derivative[i] = (derivative[i+1] - derivative[i-1]) / 2.0
         
         df_out['smoothed_pnl'] = smoothed_pnl
         df_out['derivative'] = derivative
@@ -206,15 +226,35 @@ def process_file(filepath, output_dir):
             # Take the last (most recent) value from the smoothed window
             smoothed_pnl[i] = window_smoothed[-1]
         
-        # Calculate derivatives only where we have smoothed values
-        for i in range(window_length, len(series) - 1):
-            if not np.isnan(smoothed_pnl[i-1]) and not np.isnan(smoothed_pnl[i+1]):
-                derivative[i] = (smoothed_pnl[i+1] - smoothed_pnl[i-1]) / 2.0
+        # Calculate derivatives using central difference where possible, forward/backward at edges
+        for i in range(window_length, len(series)):
+            if i == window_length:
+                # Forward difference for first point
+                if not np.isnan(smoothed_pnl[i]) and not np.isnan(smoothed_pnl[i+1]):
+                    derivative[i] = smoothed_pnl[i+1] - smoothed_pnl[i]
+            elif i == len(series) - 1:
+                # Backward difference for last point
+                if not np.isnan(smoothed_pnl[i-1]) and not np.isnan(smoothed_pnl[i]):
+                    derivative[i] = smoothed_pnl[i] - smoothed_pnl[i-1]
+            else:
+                # Central difference for middle points
+                if not np.isnan(smoothed_pnl[i-1]) and not np.isnan(smoothed_pnl[i+1]):
+                    derivative[i] = (smoothed_pnl[i+1] - smoothed_pnl[i-1]) / 2.0
         
-        # Calculate second derivatives
-        for i in range(window_length + 1, len(series) - 2):
-            if not np.isnan(derivative[i-1]) and not np.isnan(derivative[i+1]):
-                second_derivative[i] = (derivative[i+1] - derivative[i-1]) / 2.0
+        # Calculate second derivatives using central difference where possible, forward/backward at edges
+        for i in range(window_length + 1, len(series)):
+            if i == window_length + 1:
+                # Forward difference for first point
+                if not np.isnan(derivative[i]) and not np.isnan(derivative[i+1]):
+                    second_derivative[i] = derivative[i+1] - derivative[i]
+            elif i == len(series) - 1:
+                # Backward difference for last point
+                if not np.isnan(derivative[i-1]) and not np.isnan(derivative[i]):
+                    second_derivative[i] = derivative[i] - derivative[i-1]
+            else:
+                # Central difference for middle points
+                if not np.isnan(derivative[i-1]) and not np.isnan(derivative[i+1]):
+                    second_derivative[i] = (derivative[i+1] - derivative[i-1]) / 2.0
         
         # Добавляем отладочную информацию
         df_out['smoothed_pnl'] = smoothed_pnl

@@ -6,6 +6,19 @@ import logging
 import asyncio
 from typing import Optional
 from telegram import Bot
+from datetime import datetime, timezone
+
+
+class UTCFormatter(logging.Formatter):
+    """Custom formatter that uses UTC timezone for timestamps"""
+    
+    def formatTime(self, record, datefmt=None):
+        """Override formatTime to use UTC timezone"""
+        dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
+        if datefmt:
+            return dt.strftime(datefmt)
+        else:
+            return dt.strftime('%Y-%m-%d %H:%M:%S UTC')
 
 
 class TelegramErrorHandler(logging.Handler):
@@ -97,10 +110,10 @@ def setup_logging(log_level: str = 'INFO', telegram_token: Optional[str] = None,
     console_handler = logging.StreamHandler()
     console_handler.setLevel(numeric_level)
     
-    # Console formatter
-    console_formatter = logging.Formatter(
+    # Console formatter with UTC timezone
+    console_formatter = UTCFormatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        datefmt='%Y-%m-%d %H:%M:%S UTC'
     )
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
@@ -109,9 +122,9 @@ def setup_logging(log_level: str = 'INFO', telegram_token: Optional[str] = None,
     if telegram_token and telegram_chat_id:
         try:
             telegram_handler = TelegramErrorHandler(telegram_token, telegram_chat_id)
-            telegram_formatter = logging.Formatter(
+            telegram_formatter = UTCFormatter(
                 '%(asctime)s - %(name)s - %(levelname)s\n%(message)s',
-                datefmt='%Y-%m-%d %H:%M:%S'
+                datefmt='%Y-%m-%d %H:%M:%S UTC'
             )
             telegram_handler.setFormatter(telegram_formatter)
             logger.addHandler(telegram_handler)
