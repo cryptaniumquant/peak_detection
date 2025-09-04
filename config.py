@@ -49,7 +49,7 @@ SCHEDULE_MINUTES = 60   # Legacy setting - now uses cron scheduling
 # Scheduler job configuration (only schedule parameters - others are hardcoded)
 SCHEDULER_JOB_CONFIG = {
     'trigger': 'cron',
-    'minute': 0,           # Run at minute 0 of each hour (beginning of hour)
+    'minute': 15,           # Run at minute 0 of each hour (beginning of hour)
     'hour': '*',           # Every hour
 }
 
