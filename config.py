@@ -40,7 +40,7 @@ MODE = 'real'  # 'real' or 'simulate'
 STRATEGY_WHITELIST = []  # Empty list means all strategies
 
 # Time windows
-REAL_DETECT_HOURS = 27  # Hours of data to fetch for signal detection
+REAL_DETECT_HOURS = 28  # Hours of data to fetch for signal detection
 VIZ_WINDOW_DAYS = 7     # Days of data for visualization
 
 # Scheduling (APScheduler cron-based)
@@ -49,7 +49,7 @@ SCHEDULE_MINUTES = 60   # Legacy setting - now uses cron scheduling
 # Scheduler job configuration (only schedule parameters - others are hardcoded)
 SCHEDULER_JOB_CONFIG = {
     'trigger': 'cron',
-    'minute': 0,           # Run at minute 0 of each hour (beginning of hour)
+    'minute': 15,           # Run at minute 0 of each hour (beginning of hour)
     'hour': '*',           # Every hour
 }
 
@@ -118,7 +118,7 @@ async def get_analysts_from_database() -> List[str]:
             query = sa.text("""
                 select a.code as analyst 
                 from analyst a
-                where a.state = 'enabled'
+                where a.state = 'enabled' and a.typ='plan'
                 and exists (select 'x' from management m where m.analyst=a.code and m.state='enabled')
             """)
             result = await session.execute(query)
