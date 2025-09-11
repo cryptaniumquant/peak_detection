@@ -25,7 +25,7 @@ async def list_strategies_async(whitelist: List[str] | None) -> List[str]:
         # Get analysts from database
         analysts = await config.get_analysts_from_database()
         if analysts:
-            logger.info(f"Found {len(analysts)} strategies from database")
+            logger.debug(f"Found {len(analysts)} strategies from database")
             return analysts
         else:
             logger.error("No analysts found in database")
@@ -268,7 +268,7 @@ def build_notification_payload(event: dict, upto_ts: Optional[datetime] = None) 
     if ts is None or pd.isna(ts):
         title = f"Rebalance signal: {s}\nTime: No signals detected"
     else:
-        title = f"Rebalance signal: {s}\nTime: {ts.strftime('%Y-%m-%d %H:%M')}"
+        title = f"Rebalance signal: {s}\nTime: {ts.strftime('%Y-%m-%d %H:%M UTC')}"
     df = event.get('df')
     if df is not None:
         image_path = visualize_last_7_days_df(df, s, upto_ts=upto_ts or ts)

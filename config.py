@@ -123,7 +123,7 @@ async def get_analysts_from_database() -> List[str]:
             """)
             result = await session.execute(query)
             analysts = [row.analyst for row in result.fetchall()]
-            logger.info(f"Found {len(analysts)} enabled analysts from database")
+            logger.debug(f"Found {len(analysts)} enabled analysts from database")
             return analysts
     except Exception as e:
         logger.error(f"Error querying analysts from database: {e}")
@@ -141,7 +141,7 @@ async def load_strategy_thresholds_async() -> Dict[str, float]:
         # Set default threshold for all analysts
         for analyst in analysts:
             thresholds[analyst] = DEFAULT_ABSOLUTE_THRESHOLD
-        logger.info(f"Set default threshold {DEFAULT_ABSOLUTE_THRESHOLD} for {len(analysts)} analysts")
+        logger.debug(f"Set default threshold {DEFAULT_ABSOLUTE_THRESHOLD} for {len(analysts)} analysts")
     except Exception as e:
         logger.error(f"Error loading analysts from database: {e}")
     
@@ -152,7 +152,7 @@ async def load_strategy_thresholds_async() -> Dict[str, float]:
                 json_thresholds = json.load(f)
                 for strategy, threshold in json_thresholds.items():
                     thresholds[strategy] = threshold
-                logger.info(f"Applied {len(json_thresholds)} overrides from JSON file")
+                logger.debug(f"Applied {len(json_thresholds)} overrides from JSON file")
         except Exception as e:
             logger.error(f"Error loading strategy thresholds from JSON: {e}")
     
@@ -169,11 +169,11 @@ async def load_strategy_thresholds_async() -> Dict[str, float]:
                     if strategy:
                         thresholds[strategy] = threshold
                         csv_count += 1
-                logger.info(f"Applied {csv_count} overrides from CSV file")
+                logger.debug(f"Applied {csv_count} overrides from CSV file")
         except Exception as e:
             logger.error(f"Error loading strategy thresholds from CSV: {e}")
     
-    logger.info(f"Final threshold configuration: {len(thresholds)} strategies")
+    logger.debug(f"Final threshold configuration: {len(thresholds)} strategies")
     return thresholds
 
 def load_strategy_thresholds() -> Dict[str, float]:
@@ -202,7 +202,7 @@ def load_strategy_thresholds() -> Dict[str, float]:
             # Set default threshold for all analysts
             for analyst in analysts:
                 thresholds[analyst] = DEFAULT_ABSOLUTE_THRESHOLD
-            logger.info(f"Set default threshold {DEFAULT_ABSOLUTE_THRESHOLD} for {len(analysts)} analysts")
+            logger.debug(f"Set default threshold {DEFAULT_ABSOLUTE_THRESHOLD} for {len(analysts)} analysts")
     except Exception as e:
         logger.error(f"Error loading analysts from database: {e}")
     
@@ -213,7 +213,7 @@ def load_strategy_thresholds() -> Dict[str, float]:
                 json_thresholds = json.load(f)
                 for strategy, threshold in json_thresholds.items():
                     thresholds[strategy] = threshold
-                logger.info(f"Applied {len(json_thresholds)} overrides from JSON file")
+                logger.debug(f"Applied {len(json_thresholds)} overrides from JSON file")
         except Exception as e:
             logger.error(f"Error loading strategy thresholds from JSON: {e}")
     
@@ -230,11 +230,11 @@ def load_strategy_thresholds() -> Dict[str, float]:
                     if strategy:
                         thresholds[strategy] = threshold
                         csv_count += 1
-                logger.info(f"Applied {csv_count} overrides from CSV file")
+                logger.debug(f"Applied {csv_count} overrides from CSV file")
         except Exception as e:
             logger.error(f"Error loading strategy thresholds from CSV: {e}")
     
-    logger.info(f"Final threshold configuration: {len(thresholds)} strategies")
+    logger.debug(f"Final threshold configuration: {len(thresholds)} strategies")
     return thresholds
 
 def load_settings() -> Settings:
@@ -281,7 +281,7 @@ def get_async_database_uri():
 try:
     # Try to import from current directory first
     from local_settings import *
-    logger.info("Local settings imported successfully")
+    logger.debug("Local settings imported successfully")
 except ImportError:
     # If not found, try to import from the peak_detection directory
     import sys
@@ -303,7 +303,7 @@ except ImportError:
                 if not attr_name.startswith('_'):
                     globals()[attr_name] = getattr(local_settings_module, attr_name)
             
-            logger.info("Local settings imported successfully")
+            logger.debug("Local settings imported successfully")
         except Exception as e:
             logger.error(f"ERROR importing local_settings: {e}")
     else:

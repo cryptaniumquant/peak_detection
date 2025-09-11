@@ -137,6 +137,6 @@ def setup_logging(log_level: str = 'INFO', telegram_token: Optional[str] = None,
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('apscheduler').setLevel(logging.WARNING)
     
-    logger.info(f"Logging setup complete - Level: {log_level}")
+    logger.debug(f"Logging setup complete - Level: {log_level}")
     if telegram_token and telegram_chat_id:
         logger.info("Telegram error notifications enabled")

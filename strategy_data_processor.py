@@ -107,7 +107,7 @@ async def get_strategy_data_async(strategy_name, days=30):
         df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize('UTC')
         df.set_index('timestamp', inplace=True)
         
-        logger.info(f"Retrieved {len(df)} non-zero records for strategy {strategy_name}")
+        logger.debug(f"Retrieved {len(df)} non-zero records for strategy {strategy_name}")
         return df
     
     except Exception as e:
@@ -225,11 +225,11 @@ def aggregate_to_hourly(df, strategy_name=None):
         if len(non_nan_derivatives) > 0:
             latest_second_deriv = non_nan_derivatives.iloc[-1]
             latest_index = non_nan_derivatives.index[-1]
-            logger.info(f"Found continuous segment with {len(longest_segment)} hours of data{strategy_info}, latest second_derivative: {latest_second_deriv:.6f} (at {latest_index})")
+            logger.debug(f"Found continuous segment with {len(longest_segment)} hours of data{strategy_info}, latest second_derivative: {latest_second_deriv:.6f} (at {latest_index})")
         else:
-            logger.info(f"Found continuous segment with {len(longest_segment)} hours of data{strategy_info}, latest second_derivative: all NaN (total:{total_points}, smoothed:{smoothed_count}, deriv:{derivative_count}, 2nd_deriv:{second_deriv_count})")
+            logger.debug(f"Found continuous segment with {len(longest_segment)} hours of data{strategy_info}, latest second_derivative: all NaN (total:{total_points}, smoothed:{smoothed_count}, deriv:{derivative_count}, 2nd_deriv:{second_deriv_count})")
     else:
-        logger.info(f"Found continuous segment with {len(longest_segment)} hours of data{strategy_info}")
+        logger.debug(f"Found continuous segment with {len(longest_segment)} hours of data{strategy_info}")
     
     return filtered_df
 
@@ -258,7 +258,7 @@ def process_strategy(strategy_name, output_dir, days=30):
     
     # Save to CSV
     hourly_df.to_csv(output_file)
-    logger.info(f"Saved data for strategy {strategy_name} to {output_file}")
+    logger.debug(f"Saved data for strategy {strategy_name} to {output_file}")
     
     return output_file
 
@@ -384,7 +384,7 @@ def process_all_strategies(strategies_list, output_dir):
         if output_file:
             processed_files.append(output_file)
     
-    logger.info(f"Processed {len(processed_files)} strategies")
+    logger.debug(f"Processed {len(processed_files)} strategies")
     return processed_files
 
 def main():
@@ -399,7 +399,7 @@ def main():
     
     # Run peak detection on the processed files
     if processed_files:
-        logger.info("Running peak detection on processed files...")
+        logger.debug("Running peak detection on processed files...")
         from calculate_peak import process_file
         
         for file_path in processed_files:

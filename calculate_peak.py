@@ -331,7 +331,7 @@ def process_file(filepath, output_dir):
     filename = os.path.basename(filepath)
     output_path = os.path.join(output_dir, filename.replace('.csv', '_joined_with_peak.csv'))
     df_out.to_csv(output_path)
-    logger.info(f"Saved: {output_path}")
+    logger.debug(f"Saved: {output_path}")
 
 def main():
     input_dir = r'c:\Users\Ilya3\AlgoYES\Cryptanium_work_algo_opt\data_prep\adjusted_data\trend\complete'
