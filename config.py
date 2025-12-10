@@ -61,7 +61,7 @@ SCHEDULER_JOB_CONFIG = {
 TIMEZONE = 'Europe/Moscow'
 
 # Logging configuration
-LOG_LEVEL = 'DEBUG'  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 # Simulation parameters
 SIM_WINDOW_HOURS = 168  # 7 days
