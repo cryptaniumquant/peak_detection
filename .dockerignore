@@ -1,0 +1,77 @@
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Python cache and compiled files
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache
+
+# Git and version control
+**/.git
+.gitignore
+
+# Docker files (don't copy into container)
+**/Dockerfile*
+**/.dockerignore
+
+# Logs
+*.log
+logs/
+
+# Local settings and secrets (mount separately)
+**/local_settings*.py
+
+# Shell scripts (except entrypoint)
+run*.sh
+build*.sh
+deploy*.sh
+
+# Virtual environments
+.venv
+venv/
+env/
+ENV/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+*.bak
+
+# Data and output directories (create in container)
+processed_data/
+visualizations/
+
+# Documentation
+README.md
+docs/
+
+# Development and testing
+tests/
+test_*
+*_test.py
+.coverage
+htmlcov/
+
+# Package files
+*.egg-info/
+dist/
+build/

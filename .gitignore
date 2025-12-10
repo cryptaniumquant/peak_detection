@@ -1,0 +1,36 @@
+# Database credentials - NEVER commit to version control
+local_settings.py
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Data files (optional - uncomment if you don't want to commit data)
+# *.csv
+# *.json
+# processed_data/
+
+# Generated files and temporary directories
+visualizations/
+bot_service/state/
