@@ -119,15 +119,30 @@ async def get_analysts_from_database() -> List[str]:
         async_session = sessionmaker(engine, class_=AsyncSession)
         
         async with async_session() as session:
+            # Get all enabled analysts with typ='plan' and management state enabled or safe_close
             query = sa.text("""
                 select a.code as analyst 
                 from analyst a
                 where a.state = 'enabled' and a.typ='plan'
-                and exists (select 'x' from management m where m.analyst=a.code and m.state='enabled')
+                and exists (select 'x' from management m where m.analyst=a.code and m.state IN ('enabled', 'safe_close'))
             """)
             result = await session.execute(query)
             analysts = [row.analyst for row in result.fetchall()]
-            logger.debug(f"Found {len(analysts)} enabled analysts from database")
+            
+            if analysts:
+                logger.debug(f"Found {len(analysts)} enabled analysts from database")
+            else:
+                # Check if there are any analysts at all (diagnostic query)
+                count_query = sa.text("select count(*) as cnt from analyst")
+                count_result = await session.execute(count_query)
+                total_count = count_result.fetchone().cnt
+                
+                logger.warning(
+                    f"No enabled analysts found in database (total analysts: {total_count}). "
+                    f"Query criteria: state='enabled', typ='plan', with management state IN ('enabled', 'safe_close'). "
+                    f"Consider using STRATEGY_WHITELIST in config if this is intentional."
+                )
+            
             return analysts
     except Exception as e:
         logger.error(f"Error querying analysts from database: {e}")

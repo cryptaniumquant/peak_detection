@@ -33,7 +33,11 @@ async def list_strategies_async(whitelist: List[str] | None) -> List[str]:
             logger.debug(f"Found {len(analysts)} strategies from database")
             return analysts
         else:
-            logger.error("No analysts found in database")
+            # Changed from ERROR to WARNING - this might be expected if using whitelist
+            logger.warning(
+                "No analysts found in database. "
+                "Check database for enabled analysts or set STRATEGY_WHITELIST in config."
+            )
             return []
     except Exception as e:
         logger.error(f"Failed to read strategies from database: {e}")
